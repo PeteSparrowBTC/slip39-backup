@@ -7,6 +7,7 @@ This guide shows you how to run the SLIP-39 seed phrase backup tool completely o
 - USB drive (for transferring files)
 - Tails Linux booted on your computer
 - Published app files (in `Slip39Demo.Web/publish/wwwroot/`)
+- **LibreWolf browser** (recommended): Download [LibreWolf.x86_64.AppImage](https://gitlab.com/librewolf-community/browser/appimage/-/releases) or from [librewolf.net](https://librewolf.net/installation/linux/)
 
 ## Publishing the App (Do this on Windows/Mac/Linux with .NET)
 
@@ -47,7 +48,45 @@ python3 -m http.server 9876 --bind 127.0.0.1
 
 You'll see: `Serving HTTP on 127.0.0.1 port 9876 ...`
 
-### Step 4: Open in Tor Browser
+### Step 4: Open in Browser
+
+**Option A: LibreWolf (Recommended - Works Out of the Box)**
+
+LibreWolf is a privacy-focused Firefox fork that works perfectly with localhost without any configuration:
+
+1. **Download LibreWolf AppImage** (do this before booting Tails):
+   - From [GitLab Releases](https://gitlab.com/librewolf-community/browser/appimage/-/releases)
+   - Or from [librewolf.net](https://librewolf.net/installation/linux/)
+   - Save `LibreWolf.x86_64.AppImage` to your USB drive
+
+2. **On Tails**, copy AppImage to your USB (if not already there):
+   ```bash
+   # Copy to USB if downloaded elsewhere
+   cp ~/Downloads/LibreWolf.x86_64.AppImage /media/amnesia/YOUR_USB/
+   ```
+
+3. **Make it executable and run**:
+   ```bash
+   cd /media/amnesia/YOUR_USB
+   chmod +x LibreWolf.x86_64.AppImage
+   ./LibreWolf.x86_64.AppImage
+   ```
+
+4. **Navigate to**: `http://127.0.0.1:9876`
+5. The app loads and runs **100% locally**
+
+**Why LibreWolf?**
+- ✅ No proxy configuration needed
+- ✅ Works with localhost immediately
+- ✅ Privacy-focused (like Tor Browser)
+- ✅ Portable AppImage (keep on USB)
+- ✅ No installation required
+
+**Option B: Tor Browser (Requires Proxy Configuration)**
+
+⚠️ **Note:** Tor Browser on Tails routes localhost through Tor proxy by default, which blocks local connections.
+
+If you must use Tor Browser:
 
 1. Open **Tor Browser**
 2. Type in address bar: `about:preferences`
@@ -55,7 +94,11 @@ You'll see: `Serving HTTP on 127.0.0.1 port 9876 ...`
 4. Under **"No Proxy for"**, add: `127.0.0.1, localhost`
 5. Click **OK**
 6. Navigate to: `http://127.0.0.1:9876`
-7. The app loads and runs **100% locally**
+
+**Tor Browser issues:**
+- Proxy configuration can be reset
+- More complex setup
+- LibreWolf is simpler for this use case
 
 ### Step 5: Use Offline
 
