@@ -8,6 +8,8 @@ This tool allows you to split your BIP-39 wallet seed phrase (and optional passp
 
 **Built with:** [Xecrets.Slip39](https://github.com/xecrets/xecrets-slip39) NuGet package - a C# implementation of SLIP-39
 
+![SLIP-39 Wallet Backup Tool](image.png)
+
 ## Why Use SLIP-39?
 
 Traditional BIP-39 seed phrases have a problem: if someone finds your 12/24 words, they have complete access to your wallet. SLIP-39 solves this with **threshold secret sharing**:
