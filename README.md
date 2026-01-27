@@ -2,6 +2,20 @@
 
 A secure, offline-capable web application for backing up BIP-39 cryptocurrency wallet seed phrases using SLIP-39 multi-group secret sharing.
 
+## 🔴 CRITICAL SECURITY WARNING
+
+**Online Demo:** https://bitcoin-self-custody.github.io/Seed-Phrase-Storage-SLIP39
+
+**⚠️ THIS IS A DEMO ONLY - DO NOT ENTER YOUR REAL SEED PHRASE!**
+
+For actual wallet backups:
+1. Download the latest release from [Releases](https://github.com/Bitcoin-Self-Custody/Seed-Phrase-Storage-SLIP39/releases)
+2. Extract to USB drive
+3. Run offline on Tails Linux with Python server
+4. See [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md) for complete guide
+
+The online demo is for understanding and testing SLIP-39 only. Use test seed phrases, never your real wallet!
+
 ## What is This?
 
 This tool allows you to split your BIP-39 wallet seed phrase (and optional passphrase) into multiple **shares** organized into **groups**, using the [SLIP-39](https://github.com/satoshilabs/slips/blob/master/slip-0039.md) standard. You can then distribute these shares to different people or locations, and recover your wallet by collecting a threshold number of groups.
@@ -85,19 +99,30 @@ Traditional BIP-39 seed phrases have a problem: if someone finds your 12/24 word
 
 ## Usage
 
-### Option 1: Online (GitHub Pages)
+### ⚠️ IMPORTANT SECURITY WARNING ⚠️
 
-**Live app:** https://bitcoin-self-custody.github.io/Seed-Phrase-Storage-SLIP39
+**DO NOT ENTER YOUR REAL SEED PHRASE ON THE ONLINE DEMO!**
 
-Access via any browser (Tor Browser recommended):
-- Works on any device with a modern browser
-- Perfect for Tails Linux with internet access
+The GitHub Pages version is for **DEMONSTRATION AND TESTING ONLY**.
 
-**Still secure:**
-- All crypto runs in browser (WebAssembly)
-- No data sent to server - verify in DevTools Network tab
-- Can disconnect network after page loads
-- Source code visible for verification
+**For real wallet backups:**
+- Download the release zip (Option 2 below)
+- Run on Tails Linux offline with Python server
+- Or build from source and run locally
+
+### Option 1: Online Demo (GitHub Pages) - FOR TESTING ONLY
+
+**Demo app:** https://bitcoin-self-custody.github.io/Seed-Phrase-Storage-SLIP39
+
+**⚠️ WARNING: DO NOT USE WITH REAL SEED PHRASES!**
+
+This is a demonstration version. While all crypto runs client-side:
+- ❌ **DO NOT** enter your actual wallet seed phrase
+- ❌ **DO NOT** use this for real wallet backups
+- ✅ **DO** use it to understand how SLIP-39 works
+- ✅ **DO** test with dummy/test seed phrases only
+
+**For real use, download and run offline on Tails (Option 2).**
 
 ### Option 2: Offline on Tails Linux (Recommended)
 
