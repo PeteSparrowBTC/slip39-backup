@@ -1,0 +1,108 @@
+name: Build and Release SLIP-39 App
+
+# This workflow builds the Blazor WASM application and creates releases
+# Triggers:
+# - On push to main: Builds and verifies the app compiles successfully
+# - On tag push (v*): Builds, publishes, and creates a GitHub release with downloadable assets
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'  # Triggers on version tags like v1.0.0, v1.1.0, etc.
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the repository code
+      # This gets the latest code from the repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Setup .NET SDK
+      # Installs the .NET 8 SDK required to build Blazor apps
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'  # Using .NET 8 for stability (10 might not be available on GitHub runners yet)
+
+      # Step 3: Restore NuGet dependencies
+      # Downloads all required packages (Xecrets.Slip39, QRCoder, etc.)
+      - name: Restore dependencies
+        run: dotnet restore Slip39Demo.Web/Slip39Demo.Web.csproj
+
+      # Step 4: Build the application
+      # Compiles the Blazor WASM project in Release configuration
+      - name: Build
+        run: dotnet build Slip39Demo.Web/Slip39Demo.Web.csproj -c Release --no-restore
+
+      # Step 5: Publish for production
+      # Creates optimized static files in publish/wwwroot
+      # These files can be served from any web server or opened locally
+      - name: Publish
+        run: dotnet publish Slip39Demo.Web/Slip39Demo.Web.csproj -c Release -o publish
+
+      # Step 6: Create release archive
+      # Packages the wwwroot folder (contains all static files needed)
+      # This creates a zip file that users can download and use on Tails Linux
+      - name: Create release archive
+        if: startsWith(github.ref, 'refs/tags/')  # Only run on tag pushes
+        run: |
+          cd publish/wwwroot
+          zip -r ../../slip39-backup-${{ github.ref_name }}.zip .
+          cd ../..
+
+      # Step 7: Upload build artifacts (for all builds)
+      # Stores the published files as workflow artifacts
+      # Useful for debugging and verifying builds even without a release
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: slip39-backup-${{ github.sha }}
+          path: publish/wwwroot/
+          retention-days: 30
+
+      # Step 8: Create GitHub Release (only on tags)
+      # Creates a new release on GitHub with the downloadable zip
+      # Users can download this zip, extract to USB, and run on Tails Linux
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: slip39-backup-${{ github.ref_name }}.zip
+          body: |
+            # SLIP-39 Wallet Backup Tool ${{ github.ref_name }}
+
+            ## Download and Use
+
+            1. Download `slip39-backup-${{ github.ref_name }}.zip`
+            2. Extract to USB drive
+            3. On Tails Linux:
+               ```bash
+               cd /media/amnesia/YOUR_USB/slip39-backup
+               python3 serve.py
+               ```
+            4. Open Tor Browser to: `http://127.0.0.1:8000`
+
+            ## What's Included
+
+            - Complete Blazor WASM application (~27 MB)
+            - 100% client-side processing
+            - Works offline with Python web server
+            - Includes QRCoder for share QR codes
+            - Uses Xecrets.Slip39 for SLIP-39 implementation
+
+            ## Security
+
+            ✅ All cryptographic operations run in your browser (WebAssembly)
+            ✅ No data sent to any server
+            ✅ Safe for offline use on Tails Linux
+            ✅ See TAILS_INSTRUCTIONS.md for complete setup guide
+
+            **Remember:** Write shares on paper/metal, not digital storage!
+
+            *Collaboration by Claude*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
