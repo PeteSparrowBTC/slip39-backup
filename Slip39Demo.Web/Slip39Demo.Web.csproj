@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <StaticWebAssetBasePath Condition="'$(Configuration)' == 'Release'">Seed-Phrase-Storage-SLIP39</StaticWebAssetBasePath>
   </PropertyGroup>
 
   <ItemGroup>
