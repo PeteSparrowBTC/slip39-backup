@@ -11,6 +11,9 @@
 publish/
 **/publish/
 
+# Exception: Keep docs/ for GitHub Pages
+!docs/
+
 # SSL certificates (if generated)
 *.pem
 *.key

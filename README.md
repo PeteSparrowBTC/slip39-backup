@@ -83,17 +83,19 @@ Traditional BIP-39 seed phrases have a problem: if someone finds your 12/24 word
 
 ## Usage
 
-### Option 1: Online (GitHub Pages - Coming Soon)
+### Option 1: Online (GitHub Pages)
 
-Access via Tor Browser:
-```
-https://bitcoin-self-custody.github.io/Seed-Phrase-Storage-SLIP39
-```
+**Live app:** https://bitcoin-self-custody.github.io/Seed-Phrase-Storage-SLIP39
+
+Access via any browser (Tor Browser recommended):
+- Works on any device with a modern browser
+- Perfect for Tails Linux with internet access
 
 **Still secure:**
-- All crypto runs in browser
-- No data sent to server
+- All crypto runs in browser (WebAssembly)
+- No data sent to server - verify in DevTools Network tab
 - Can disconnect network after page loads
+- Source code visible for verification
 
 ### Option 2: Offline on Tails Linux (Recommended)
 
