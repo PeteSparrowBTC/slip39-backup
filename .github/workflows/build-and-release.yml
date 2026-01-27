@@ -1,8 +1,8 @@
 name: Build and Release SLIP-39 App
 
-# This workflow builds the Blazor WASM application and creates releases
+# This workflow builds the Blazor WASM application and deploys to GitHub Pages
 # Triggers:
-# - On push to main: Builds and verifies the app compiles successfully
+# - On push to main: Builds, deploys to GitHub Pages
 # - On tag push (v*): Builds, publishes, and creates a GitHub release with downloadable assets
 on:
   push:
@@ -11,10 +11,17 @@ on:
     tags:
       - 'v*'  # Triggers on version tags like v1.0.0, v1.1.0, etc.
 
-# Permissions required for creating releases and uploading artifacts
+# Permissions required for creating releases, uploading artifacts, and deploying to Pages
 permissions:
   contents: write
   packages: write
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -22,56 +29,66 @@ jobs:
 
     steps:
       # Step 1: Checkout the repository code
-      # This gets the latest code from the repository
       - name: Checkout code
         uses: actions/checkout@v4
 
       # Step 2: Setup .NET SDK
-      # Installs the .NET 8 SDK required to build Blazor apps
+      # Use .NET 8 for stability (10 might not be available on GitHub runners)
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'  # Using .NET 8 for stability (10 might not be available on GitHub runners yet)
+          dotnet-version: '8.0.x'
 
-      # Step 3: Restore NuGet dependencies
-      # Downloads all required packages (Xecrets.Slip39, QRCoder, etc.)
+      # Step 3: Update target framework to .NET 8 for GitHub Actions compatibility
+      - name: Update target framework
+        run: |
+          sed -i 's/<TargetFramework>net10.0<\/TargetFramework>/<TargetFramework>net8.0<\/TargetFramework>/' Slip39Demo.Web/Slip39Demo.Web.csproj
+
+      # Step 4: Restore NuGet dependencies
       - name: Restore dependencies
         run: dotnet restore Slip39Demo.Web/Slip39Demo.Web.csproj
 
-      # Step 4: Build the application
-      # Compiles the Blazor WASM project in Release configuration
+      # Step 5: Build the application
       - name: Build
         run: dotnet build Slip39Demo.Web/Slip39Demo.Web.csproj -c Release --no-restore
 
-      # Step 5: Publish for production
-      # Creates optimized static files in publish/wwwroot
-      # These files can be served from any web server or opened locally
-      - name: Publish
+      # Step 6: Publish for GitHub Pages
+      # Set base path for GitHub Pages deployment
+      - name: Publish for GitHub Pages
         run: dotnet publish Slip39Demo.Web/Slip39Demo.Web.csproj -c Release -o publish
 
-      # Step 6: Create release archive
-      # Packages the wwwroot folder (contains all static files needed)
-      # This creates a zip file that users can download and use on Tails Linux
+      # Step 7: Fix base href for GitHub Pages
+      - name: Fix base href
+        run: |
+          sed -i 's|<base href="/" />|<base href="/Seed-Phrase-Storage-SLIP39/" />|' publish/wwwroot/index.html
+
+      # Step 8: Add .nojekyll file
+      - name: Add .nojekyll
+        run: touch publish/wwwroot/.nojekyll
+
+      # Step 9: Upload artifact for GitHub Pages deployment
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: publish/wwwroot
+
+      # Step 10: Create release archive (only on tags)
       - name: Create release archive
-        if: startsWith(github.ref, 'refs/tags/')  # Only run on tag pushes
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           cd publish/wwwroot
           zip -r ../../slip39-backup-${{ github.ref_name }}.zip .
           cd ../..
 
-      # Step 7: Upload build artifacts (for all builds)
-      # Stores the published files as workflow artifacts
-      # Useful for debugging and verifying builds even without a release
-      - name: Upload artifacts
+      # Step 11: Upload build artifacts (for debugging)
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: slip39-backup-${{ github.sha }}
           path: publish/wwwroot/
           retention-days: 30
 
-      # Step 8: Create GitHub Release (only on tags)
-      # Creates a new release on GitHub with the downloadable zip
-      # Users can download this zip, extract to USB, and run on Tails Linux
+      # Step 12: Create GitHub Release (only on tags)
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
@@ -87,9 +104,11 @@ jobs:
             3. On Tails Linux:
                ```bash
                cd /media/amnesia/YOUR_USB/slip39-backup
-               python3 serve.py
+               ./start-server.sh
                ```
-            4. Open Tor Browser to: `http://127.0.0.1:8000`
+            4. Open Tor Browser (configure to allow localhost) to: `http://127.0.0.1:9876`
+
+            See TAILS_INSTRUCTIONS.md for complete setup guide.
 
             ## What's Included
 
@@ -102,12 +121,26 @@ jobs:
             ## Security
 
             ✅ All cryptographic operations run in your browser (WebAssembly)
-            ✅ No data sent to any server
+            ✅ No data sent to any server - verifiable in DevTools
             ✅ Safe for offline use on Tails Linux
-            ✅ See TAILS_INSTRUCTIONS.md for complete setup guide
 
             **Remember:** Write shares on paper/metal, not digital storage!
 
             *Collaboration by Claude*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Deploy to GitHub Pages
+  deploy-pages:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
