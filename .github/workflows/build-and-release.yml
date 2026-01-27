@@ -11,6 +11,11 @@ on:
     tags:
       - 'v*'  # Triggers on version tags like v1.0.0, v1.1.0, etc.
 
+# Permissions required for creating releases and uploading artifacts
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
