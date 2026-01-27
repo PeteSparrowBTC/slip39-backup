@@ -1,20 +1,29 @@
 # SLIP-39 Wallet Backup Tool
 
+## 🔴 LIVE DEMO - DO NOT USE FOR REAL WALLETS 🔴
+
+**Demo URL:** https://bitcoin-self-custody.github.io/Seed-Phrase-Storage-SLIP39
+
+### ⚠️ CRITICAL: THIS ONLINE VERSION IS FOR DEMONSTRATION ONLY ⚠️
+
+**DO NOT ATTEMPT ACTUAL WALLET BACKUPS FROM THIS GITHUB PAGES VERSION!**
+
+**Why?**
+- You should never enter real seed phrases in any online service
+- Even though all crypto runs client-side, use offline for real wallets
+- This demo is for learning and testing SLIP-39 only
+
+**For actual wallet backup, you MUST:**
+1. **Download** the latest release: [Releases](https://github.com/Bitcoin-Self-Custody/Seed-Phrase-Storage-SLIP39/releases)
+2. **Extract** to USB drive
+3. **Run offline** on Tails Linux with Python server (see [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md))
+4. **No internet connection** - completely air-gapped
+
+---
+
+## About This Tool
+
 A secure, offline-capable web application for backing up BIP-39 cryptocurrency wallet seed phrases using SLIP-39 multi-group secret sharing.
-
-## 🔴 CRITICAL SECURITY WARNING
-
-**Online Demo:** https://bitcoin-self-custody.github.io/Seed-Phrase-Storage-SLIP39
-
-**⚠️ THIS IS A DEMO ONLY - DO NOT ENTER YOUR REAL SEED PHRASE!**
-
-For actual wallet backups:
-1. Download the latest release from [Releases](https://github.com/Bitcoin-Self-Custody/Seed-Phrase-Storage-SLIP39/releases)
-2. Extract to USB drive
-3. Run offline on Tails Linux with Python server
-4. See [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md) for complete guide
-
-The online demo is for understanding and testing SLIP-39 only. Use test seed phrases, never your real wallet!
 
 ## What is This?
 
