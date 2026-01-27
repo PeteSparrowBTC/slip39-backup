@@ -33,46 +33,39 @@ jobs:
         uses: actions/checkout@v4
 
       # Step 2: Setup .NET SDK
-      # Use .NET 8 for stability (10 might not be available on GitHub runners)
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      # Step 3: Update target framework to .NET 8 for GitHub Actions compatibility
-      - name: Update target framework
-        run: |
-          sed -i 's/<TargetFramework>net10.0<\/TargetFramework>/<TargetFramework>net8.0<\/TargetFramework>/' Slip39Demo.Web/Slip39Demo.Web.csproj
-
-      # Step 4: Restore NuGet dependencies
+      # Step 3: Restore NuGet dependencies
       - name: Restore dependencies
         run: dotnet restore Slip39Demo.Web/Slip39Demo.Web.csproj
 
-      # Step 5: Build the application
+      # Step 4: Build the application
       - name: Build
         run: dotnet build Slip39Demo.Web/Slip39Demo.Web.csproj -c Release --no-restore
 
-      # Step 6: Publish for GitHub Pages
-      # Set base path for GitHub Pages deployment
+      # Step 5: Publish for GitHub Pages
       - name: Publish for GitHub Pages
         run: dotnet publish Slip39Demo.Web/Slip39Demo.Web.csproj -c Release -o publish
 
-      # Step 7: Fix base href for GitHub Pages
+      # Step 6: Fix base href for GitHub Pages
       - name: Fix base href
         run: |
           sed -i 's|<base href="/" />|<base href="/Seed-Phrase-Storage-SLIP39/" />|' publish/wwwroot/index.html
 
-      # Step 8: Add .nojekyll file
+      # Step 7: Add .nojekyll file
       - name: Add .nojekyll
         run: touch publish/wwwroot/.nojekyll
 
-      # Step 9: Upload artifact for GitHub Pages deployment
+      # Step 8: Upload artifact for GitHub Pages deployment
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: publish/wwwroot
 
-      # Step 10: Create release archive (only on tags)
+      # Step 9: Create release archive (only on tags)
       - name: Create release archive
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -80,7 +73,7 @@ jobs:
           zip -r ../../slip39-backup-${{ github.ref_name }}.zip .
           cd ../..
 
-      # Step 11: Upload build artifacts (for debugging)
+      # Step 10: Upload build artifacts (for debugging)
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -88,7 +81,7 @@ jobs:
           path: publish/wwwroot/
           retention-days: 30
 
-      # Step 12: Create GitHub Release (only on tags)
+      # Step 11: Create GitHub Release (only on tags)
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
