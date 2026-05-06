@@ -2,7 +2,7 @@
 
 ## 🔴 LIVE DEMO - DO NOT USE FOR REAL WALLETS 🔴
 
-**Demo URL:** https://bitcoin-self-custody.github.io/Seed-Phrase-Storage-SLIP39
+**Demo URL:** https://petesparrowbtc.github.io/Seed-Phrase-Storage-SLIP39
 
 ### ⚠️ CRITICAL: THIS ONLINE VERSION IS FOR DEMONSTRATION ONLY ⚠️
 
@@ -14,7 +14,7 @@
 - This demo is for learning and testing SLIP-39 only
 
 **For actual wallet backup, you MUST:**
-1. **Download** the latest release: [Releases](https://github.com/Bitcoin-Self-Custody/Seed-Phrase-Storage-SLIP39/releases)
+1. **Download** the latest release: [Releases](https://github.com/PeteSparrowBTC/Seed-Phrase-Storage-SLIP39/releases)
 2. **Extract** to USB drive
 3. **Run offline** on Tails Linux with Python server (see [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md))
 4. **No internet connection** - completely air-gapped
@@ -121,7 +121,7 @@ The GitHub Pages version is for **DEMONSTRATION AND TESTING ONLY**.
 
 ### Option 1: Online Demo (GitHub Pages) - FOR TESTING ONLY
 
-**Demo app:** https://bitcoin-self-custody.github.io/Seed-Phrase-Storage-SLIP39
+**Demo app:** https://petesparrowbtc.github.io/Seed-Phrase-Storage-SLIP39
 
 **⚠️ WARNING: DO NOT USE WITH REAL SEED PHRASES!**
 
@@ -136,7 +136,7 @@ This is a demonstration version. While all crypto runs client-side:
 ### Option 2: Offline on Tails Linux (Recommended)
 
 **Download from GitHub Releases:**
-1. Go to [Releases](https://github.com/Bitcoin-Self-Custody/Seed-Phrase-Storage-SLIP39/releases)
+1. Go to [Releases](https://github.com/PeteSparrowBTC/Seed-Phrase-Storage-SLIP39/releases)
 2. Download `slip39-backup-vX.X.X.zip`
 3. Extract to USB drive
 
@@ -167,7 +167,7 @@ See [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md) for complete guide.
 
 **Build:**
 ```bash
-git clone https://github.com/Bitcoin-Self-Custody/Seed-Phrase-Storage-SLIP39.git
+git clone https://github.com/PeteSparrowBTC/Seed-Phrase-Storage-SLIP39.git
 cd Seed-Phrase-Storage-SLIP39/Slip39Demo.Web
 dotnet publish -c Release -o publish
 ```
