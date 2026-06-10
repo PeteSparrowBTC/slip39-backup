@@ -17,5 +17,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Slip39Demo.Core\Slip39Demo.Core.csproj" />
+    <ProjectReference Include="..\Slip39Demo.Web\Slip39Demo.Web.csproj" />
   </ItemGroup>
 </Project>
