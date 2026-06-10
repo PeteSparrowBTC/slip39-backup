@@ -1,4 +1,14 @@
 @page "/owner"
+@using System.Security.Cryptography
+@using System.Text
+@using CSharpFunctionalExtensions
+@using Slip39Demo.Core.Age
+@using Slip39Demo.Core.Bip32
+@using Slip39Demo.Core.Bundle
+@using Slip39Demo.Core.Payload
+@using Slip39Demo.Core.Slip39
+@using Slip39Demo.Core.Verification
+@using Slip39Demo.Web.Services
 @using Slip39Demo.Web.Shared
 
 <PageTitle>Create backup — SLIP-39 + age</PageTitle>
@@ -51,12 +61,31 @@
                 <div class="card-header">Generate</div>
                 <div class="card-body p-3">
                     <p class="small text-muted">
-                        Clicking <strong>Generate</strong> creates a random 32-byte key,
-                        SLIP-39-splits it into your chosen share configuration, and encrypts
-                        the wallet payload with age. You will receive one <code>output.zip</code>
-                        download containing every artifact.
+                        Clicking <strong>Generate</strong> creates a random 32-byte key, SLIP-39-splits
+                        it, encrypts the wallet payload with age, and downloads everything as one
+                        <code>output.zip</code>.
                     </p>
-                    <button class="btn btn-primary w-100" disabled>Generate (wired in Task 19)</button>
+
+                    @if (errorMessage is not null)
+                    {
+                        <div class="alert alert-danger small p-2">@errorMessage</div>
+                    }
+                    @if (successMessage is not null)
+                    {
+                        <div class="alert alert-success small p-2">@successMessage</div>
+                    }
+
+                    <button class="btn btn-primary w-100" @onclick="GenerateAsync" disabled="@isGenerating">
+                        @if (isGenerating)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <text>Generating…</text>
+                        }
+                        else
+                        {
+                            <text>Generate</text>
+                        }
+                    </button>
                 </div>
             </div>
         </div>
@@ -64,7 +93,125 @@
 </div>
 
 @code {
+    [Inject] IFileDownloader Downloader { get; set; } = null!;
+
     readonly OwnerFormModel model = new();
+    bool isGenerating;
+    string? errorMessage;
+    string? successMessage;
+
+    async Task GenerateAsync()
+    {
+        errorMessage = null;
+        successMessage = null;
+        isGenerating = true;
+        try
+        {
+            await Task.Yield(); // let the spinner render before CPU-bound work
+
+            var build = TryBuild();
+            if (build.IsFailure)
+            {
+                errorMessage = build.Error;
+                return;
+            }
+            var (bundle, mnemonicCount, fingerprint) = build.Value;
+            await Downloader.DownloadAsync("output.zip", bundle, "application/zip");
+            successMessage = $"Generated {mnemonicCount} share(s). Wallet master fingerprint: {fingerprint}. Bundle downloaded as output.zip.";
+        }
+        finally
+        {
+            isGenerating = false;
+        }
+    }
+
+    // Pure projection from the view-model to the bundle bytes. Returns a Result so
+    // every legitimate failure surface (no seed, age failure, SLIP-39 failure) is
+    // captured cleanly without exceptions reaching the UI layer.
+    Result<(byte[] Bundle, int MnemonicCount, Bip32Fingerprint Fingerprint)> TryBuild()
+    {
+        var firstSeed = !string.IsNullOrWhiteSpace(model.TopLevelSeedWords)
+            ? model.TopLevelSeedWords
+            : model.Cosigners.Select(c => c.SeedWords).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s));
+        if (string.IsNullOrWhiteSpace(firstSeed))
+            return Result.Failure<(byte[], int, Bip32Fingerprint)>("At least one seed must be provided (either top-level or per-cosigner).");
+
+        var firstPp = model.Cosigners.Select(c => c.Passphrase).FirstOrDefault(p => !string.IsNullOrEmpty(p));
+
+        var payload = new PayloadV1_1(
+            SchemaVersion: "1.1",
+            Created: $"{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}",
+            Label: model.Label,
+            TopLevelSeedWords: string.IsNullOrWhiteSpace(model.TopLevelSeedWords) ? null : model.TopLevelSeedWords,
+            Cosigners: model.Cosigners.Select(c => new Cosigner(
+                Id: c.Id,
+                WalletType: c.WalletType,
+                Passphrase: string.IsNullOrEmpty(c.Passphrase) ? null : c.Passphrase,
+                DerivationPath: c.DerivationPath,
+                SeedWords: string.IsNullOrEmpty(c.SeedWords) ? null : c.SeedWords,
+                XpubFingerprint: string.IsNullOrEmpty(c.XpubFingerprint) ? null : c.XpubFingerprint)).ToList(),
+            Descriptor: string.IsNullOrEmpty(model.Descriptor) ? null : model.Descriptor,
+            // Single-group threshold display; multi-group uses the first group's
+            // shape as a primary display. The full group structure is reflected in
+            // the README per share regardless.
+            Threshold: $"{model.Groups[0].Threshold}-of-{model.Groups[0].Count}",
+            Slip39Extendable: true,
+            Notes: null);
+
+        var payloadText = PayloadEmitter.Emit(payload);
+        var payloadBytes = Encoding.UTF8.GetBytes(payloadText);
+
+        var k = RandomNumberGenerator.GetBytes(32);
+
+        var cipherResult = AgePassphrase.Encrypt(payloadBytes, k);
+        if (cipherResult.IsFailure)
+            return Result.Failure<(byte[], int, Bip32Fingerprint)>(cipherResult.Error);
+        var ciphertext = cipherResult.Value;
+
+        var cfg = new GroupConfig(
+            GroupThreshold: model.GroupThreshold,
+            Groups: model.Groups.Select(g => new ShareGroup(g.Name, g.Threshold, g.Count)).ToList(),
+            Extendable: true);
+
+        var splitResult = Slip39Wrapping.SplitKey(k, cfg);
+        if (splitResult.IsFailure)
+            return Result.Failure<(byte[], int, Bip32Fingerprint)>(splitResult.Error);
+        var mnemonics = splitResult.Value;
+
+        // Walk the group-flat mnemonic list and label each as group/index-in-group
+        // so the README and the share zip filename carry the right naming.
+        var shareZips = new List<(string FileName, byte[] ZipBytes)>();
+        var flat = 0;
+        for (var gi = 0; gi < cfg.Groups.Count; gi++)
+        {
+            var g = cfg.Groups[gi];
+            for (var mi = 0; mi < g.Count; mi++)
+            {
+                var readme = ReadmeTemplate.Build(cfg, g.Name, mi + 1, g.Count, $"{DateTime.UtcNow:yyyy-MM-dd}", "2.0.0");
+                var folder = ShareFolder.Build(readme, mnemonics[flat]);
+                var zip = ShareZipWriter.Write(folder);
+                var fileName = cfg.Groups.Count == 1
+                    ? $"share-{mi + 1}-of-{g.Count}.zip"
+                    : $"{g.Name}-share-{mi + 1}-of-{g.Count}.zip";
+                shareZips.Add((fileName, zip));
+                flat++;
+            }
+        }
+
+        var armored = AgeArmor.Encode(ciphertext);
+        var fingerprint = Bip32MasterFingerprint.Compute(firstSeed, firstPp);
+        var record = VerificationRecord.Build(
+            createdDate: $"{DateTime.UtcNow:yyyy-MM-dd}",
+            toolVersion: "2.0.0",
+            label: model.Label ?? "",
+            mnemonicsInOrder: mnemonics,
+            payloadAgeBytes: ciphertext,
+            walletMasterFingerprint: fingerprint);
+
+        var bundle = OutputBundleBuilder.Build(shareZips, ciphertext, armored, record);
+
+        return (bundle, mnemonics.Count, fingerprint);
+    }
 
     void AddCosigner() =>
         model.Cosigners.Add(new CosignerVm
