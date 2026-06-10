@@ -7,9 +7,18 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="AgeSharp" Version="0.2.0-preview.2" />
+    <!-- AgeSharp NuGet was dropped in favour of the patched fork at
+         third_party/AgeSharp (branch wasm-bouncy-chacha), which swaps the
+         BCL ChaCha20Poly1305 (UnsupportedOSPlatform("browser")) for a
+         BouncyCastle-backed adapter so the library works under Blazor WASM. -->
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
     <PackageReference Include="CSharpFunctionalExtensions" Version="3.6.0" />
     <PackageReference Include="Xecrets.Slip39" Version="2.3.1315" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Patched AgeSharp consumed via git submodule + ProjectReference. See
+         third_party/AgeSharp/Age/Crypto/BcChaCha20Poly1305.cs for the WASM
+         compatibility shim. -->
+    <ProjectReference Include="..\third_party\AgeSharp\Age\Age.csproj" />
   </ItemGroup>
 </Project>
