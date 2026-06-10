@@ -1,0 +1,81 @@
+@page "/owner"
+@using Slip39Demo.Web.Shared
+
+<PageTitle>Create backup — SLIP-39 + age</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="text-white mb-0">📤 Create backup</h2>
+        <a href="/" class="btn btn-sm btn-outline-secondary">← Home</a>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-7">
+            <div class="card mb-3">
+                <div class="card-header">Wallet metadata</div>
+                <div class="card-body p-3">
+                    <div class="mb-2">
+                        <label class="form-label small">Label</label>
+                        <input class="form-control form-control-sm" @bind="model.Label" placeholder="e.g. Main wallet 2026" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">Top-level seed words (shared-seed mode — leave empty for per-cosigner seeds)</label>
+                        <input class="form-control form-control-sm font-monospace" @bind="model.TopLevelSeedWords"
+                               placeholder="abandon ability able about above absent absorb abstract absurd abuse access accident" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">Descriptor (multisig only, optional)</label>
+                        <input class="form-control form-control-sm font-monospace" @bind="model.Descriptor"
+                               placeholder="wsh(sortedmulti(2, ...))" />
+                    </div>
+                </div>
+            </div>
+
+            <h5 class="mt-4 mb-2">Cosigners</h5>
+            @for (var i = 0; i < model.Cosigners.Count; i++)
+            {
+                var idx = i;
+                <CosignerEditor Vm="model.Cosigners[idx]" Index="idx"
+                                Removable="model.Cosigners.Count > 1"
+                                OnRemove="() => RemoveCosigner(idx)" />
+            }
+            <button class="btn btn-sm btn-outline-secondary mb-3" @onclick="AddCosigner">+ Add cosigner</button>
+
+            <GroupConfigEditor Groups="model.Groups"
+                               GroupThreshold="model.GroupThreshold"
+                               GroupThresholdChanged="v => model.GroupThreshold = v" />
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card sticky-top" style="top: 20px;">
+                <div class="card-header">Generate</div>
+                <div class="card-body p-3">
+                    <p class="small text-muted">
+                        Clicking <strong>Generate</strong> creates a random 32-byte key,
+                        SLIP-39-splits it into your chosen share configuration, and encrypts
+                        the wallet payload with age. You will receive one <code>output.zip</code>
+                        download containing every artifact.
+                    </p>
+                    <button class="btn btn-primary w-100" disabled>Generate (wired in Task 19)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    readonly OwnerFormModel model = new();
+
+    void AddCosigner() =>
+        model.Cosigners.Add(new CosignerVm
+        {
+            Id = $"cosigner-{model.Cosigners.Count + 1}",
+            DerivationPath = "m/84'/0'/0'",
+        });
+
+    void RemoveCosigner(int idx)
+    {
+        if (model.Cosigners.Count > 1)
+            model.Cosigners.RemoveAt(idx);
+    }
+}
