@@ -1,0 +1,112 @@
+@page "/recoverer"
+@using System.Text
+@using CSharpFunctionalExtensions
+@using Slip39Demo.Core.Age
+@using Slip39Demo.Core.Payload
+@using Slip39Demo.Core.Slip39
+@using Slip39Demo.Web.Shared
+
+<PageTitle>Recover wallet — SLIP-39 + age</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="text-white mb-0">📥 Recover wallet</h2>
+        <a href="/" class="btn btn-sm btn-outline-secondary">← Home</a>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <MnemonicInput @bind-MnemonicText="mnemonicText" />
+            <CiphertextInput @bind-ArmorText="armorText" BinaryChanged="b => binaryFromUpload = b" />
+
+            @if (errorMessage is not null)
+            {
+                <div class="alert alert-danger small p-2">@errorMessage</div>
+            }
+
+            <button class="btn btn-success w-100" @onclick="RecoverAsync" disabled="@isRecovering">
+                @if (isRecovering)
+                {
+                    <span class="spinner-border spinner-border-sm me-2"></span> <text>Recovering…</text>
+                }
+                else
+                {
+                    <text>Recover</text>
+                }
+            </button>
+        </div>
+
+        <div class="col-lg-6">
+            @if (recovered is not null)
+            {
+                <RecoveredPayloadView Payload="recovered" />
+            }
+            else
+            {
+                <div class="card text-muted">
+                    <div class="card-body p-4 text-center">
+                        Provide threshold-many mnemonics and the encrypted payload,
+                        then click Recover.
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    string mnemonicText = "";
+    string armorText = "";
+    byte[]? binaryFromUpload;
+
+    PayloadV1_1? recovered;
+    string? errorMessage;
+    bool isRecovering;
+
+    async Task RecoverAsync()
+    {
+        errorMessage = null;
+        recovered = null;
+        isRecovering = true;
+        try
+        {
+            await Task.Yield(); // let the spinner render
+
+            var mnemonics = mnemonicText
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+            if (mnemonics.Count == 0)
+            {
+                errorMessage = "Paste at least one SLIP-39 mnemonic.";
+                return;
+            }
+
+            var keyResult = Slip39Wrapping.CombineMnemonics(mnemonics);
+            if (keyResult.IsFailure) { errorMessage = keyResult.Error; return; }
+
+            var cipher = ResolveCiphertext();
+            if (cipher.IsFailure) { errorMessage = cipher.Error; return; }
+
+            var plain = AgePassphrase.Decrypt(cipher.Value, keyResult.Value);
+            if (plain.IsFailure) { errorMessage = plain.Error; return; }
+
+            var parsed = PayloadParser.Parse(Encoding.UTF8.GetString(plain.Value));
+            if (parsed.IsFailure) { errorMessage = parsed.Error; return; }
+
+            recovered = parsed.Value;
+        }
+        finally
+        {
+            isRecovering = false;
+        }
+    }
+
+    Result<byte[]> ResolveCiphertext()
+    {
+        if (binaryFromUpload is not null && binaryFromUpload.Length > 0)
+            return binaryFromUpload;
+        if (!string.IsNullOrWhiteSpace(armorText))
+            return AgeArmor.Decode(armorText);
+        return Result.Failure<byte[]>("Provide either the binary payload.age or its ASCII-armored text.");
+    }
+}
