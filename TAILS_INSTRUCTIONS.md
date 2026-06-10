@@ -1,6 +1,10 @@
-# Running SLIP-39 Wallet Backup on Tails Linux
+# Running SLIP-39 + age Wallet Backup on Tails Linux
 
-This guide shows you how to run the SLIP-39 seed phrase backup tool completely offline on Tails Linux.
+This guide shows you how to run the SLIP-39 + age seed phrase backup tool completely offline on Tails Linux.
+
+The app has two pages you'll use:
+- **`/owner`** — create a backup. Outputs a single `output.zip` (share zips + `payload.age` + verification record). Save it to your USB.
+- **`/recoverer`** — recover a wallet. Drop threshold-many share zips and `payload.age` in, click Recover.
 
 ## Prerequisites
 
@@ -115,11 +119,29 @@ sudo netstat -tunlp | grep 9876
 # Should show only 127.0.0.1:9876 (local only)
 ```
 
-### Step 6: When Done
+### Step 6: Create or recover a backup
+
+**Creating a backup (Owner mode):**
+1. From the landing page, click **Start backup** (or go to `/owner`).
+2. Enter your BIP-39 seed words in the **Top-level seed words** field. Optionally add a label, a BIP-39 passphrase, or adjust the threshold/group shape (default 3-of-5 single group).
+3. Click **Generate**. The browser downloads `output.zip`.
+4. Save `output.zip` to your USB (e.g. `/media/amnesia/YOUR_USB/`). Inside it you'll find:
+   - `shares/share-1-of-5.zip` … `share-5-of-5.zip` — distribute to your storage locations.
+   - `payload/payload.age` and `payload/payload.age.txt` — store in a password-manager entry with Emergency Access for your executor.
+   - `verification-record.txt` — keep alongside the payload for periodic dry-run recovery checks.
+5. Split the contents of `output.zip` to their respective homes immediately, then delete the zip itself.
+
+**Recovering a wallet (Recoverer mode):**
+1. From the landing page, click **Start recovery** (or go to `/recoverer`).
+2. Drop threshold-many share `.zip` files into the mnemonics file picker (or paste mnemonics one per line).
+3. Drop `payload.age` (binary) or `payload.age.txt` (ASCII armor) into the ciphertext picker.
+4. Click **Recover**. The recovered seed words appear with a reveal-on-click.
+
+### Step 7: When Done
 
 - Press `Ctrl+C` in terminal to stop web server
-- Close Tor Browser
-- Shutdown Tails (all data cleared from RAM)
+- Close the browser
+- Shutdown Tails (all data cleared from RAM — only the files you wrote to USB persist)
 
 ## Option 2: GitHub Pages (Online Access via Tor)
 
@@ -182,9 +204,9 @@ For maximum censorship resistance:
 
 1. **Verify the Code**: Review source before use
 2. **Offline Mode**: Use Python server method (127.0.0.1) for air-gapped
-3. **No Screenshots**: Don't screenshot shares
-4. **Write Down Shares**: Use paper/metal, not digital storage
-5. **Test Recovery**: Always test with one share before distributing
+3. **No Screenshots**: Don't screenshot shares or the recovered seed
+4. **Split `output.zip` immediately**: Move share zips to long-term homes and `payload.age` to your password manager, then delete `output.zip`
+5. **Test Recovery**: Always do a dry-run recovery (Recoverer page) with the freshly produced shares before relying on the backup
 
 ## File Structure for USB
 
@@ -229,18 +251,21 @@ The `file://` protocol doesn't support these, so a local web server is required.
 
 ## Recommended Workflow
 
-**For Maximum Security (Air-Gapped):**
+**For Maximum Security (Air-Gapped backup creation):**
 
 1. Boot Tails WITHOUT network
 2. Insert USB with app
-3. Run: `python3 -m http.server 9876` in app folder
-4. Open Tor Browser → `http://127.0.0.1:9876`
-5. Generate shares, write them down
-6. Shutdown Tails (everything wiped)
+3. Run: `./start-server.sh` (or `python3 -m http.server 9876 --bind 127.0.0.1`) in app folder
+4. Open LibreWolf (or configured Tor Browser) → `http://127.0.0.1:9876`
+5. Click **Start backup**, fill the form, click **Generate**, save `output.zip` to USB
+6. Immediately do a dry-run recovery on the same offline session (Recoverer page) using the freshly produced shares + `payload.age` to confirm everything reconstructs
+7. Shutdown Tails (RAM wiped — only the files written to USB persist)
 
-**For Convenience:**
+After shutdown, on a separate trusted device, split the contents of `output.zip` into their long-term homes (share zips to physical storage, `payload.age` to password-manager with Emergency Access) and delete the zip.
 
-Use GitHub Pages and access via Tor Browser anytime.
+**For Convenience (demo / learning only):**
+
+Use GitHub Pages and access via Tor Browser anytime — but **never** with a real seed phrase.
 
 ---
 
