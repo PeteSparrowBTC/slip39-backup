@@ -1,0 +1,82 @@
+@using Slip39Demo.Core.Payload
+
+<div class="card border-success mb-3">
+    <div class="card-header bg-success text-white">✓ Wallet recovered</div>
+    <div class="card-body p-3">
+        @if (Payload is null)
+        {
+            <p>(no payload)</p>
+        }
+        else
+        {
+            <dl class="row small mb-0">
+                <dt class="col-sm-3">Label</dt>
+                <dd class="col-sm-9">@(Payload.Label ?? "(none)")</dd>
+
+                <dt class="col-sm-3">Schema version</dt>
+                <dd class="col-sm-9">@Payload.SchemaVersion</dd>
+
+                @if (Payload.TopLevelSeedWords is not null)
+                {
+                    <dt class="col-sm-3">Seed words</dt>
+                    <dd class="col-sm-9">
+                        @if (revealTopSeed)
+                        {
+                            <code class="user-select-all">@Payload.TopLevelSeedWords</code>
+                        }
+                        else
+                        {
+                            <button class="btn btn-sm btn-outline-warning" @onclick="() => revealTopSeed = true">Reveal seed words</button>
+                        }
+                    </dd>
+                }
+
+                @foreach (var c in Payload.Cosigners)
+                {
+                    <dt class="col-12 mt-3">Cosigner: @c.Id (@c.WalletType)</dt>
+                    @if (c.SeedWords is not null)
+                    {
+                        <dt class="col-sm-3 ps-4">Seed words</dt>
+                        <dd class="col-sm-9">
+                            @if (revealedCosigners.Contains(c.Id))
+                            {
+                                <code class="user-select-all">@c.SeedWords</code>
+                            }
+                            else
+                            {
+                                <button class="btn btn-sm btn-outline-warning" @onclick="() => Reveal(c.Id)">Reveal seed words</button>
+                            }
+                        </dd>
+                    }
+                    @if (c.Passphrase is not null)
+                    {
+                        <dt class="col-sm-3 ps-4">Passphrase</dt>
+                        <dd class="col-sm-9"><code class="user-select-all">@c.Passphrase</code></dd>
+                    }
+                    <dt class="col-sm-3 ps-4">Derivation path</dt>
+                    <dd class="col-sm-9"><code>@c.DerivationPath</code></dd>
+                    @if (c.XpubFingerprint is not null)
+                    {
+                        <dt class="col-sm-3 ps-4">Xpub fingerprint</dt>
+                        <dd class="col-sm-9"><code>@c.XpubFingerprint</code></dd>
+                    }
+                }
+
+                @if (Payload.Descriptor is not null)
+                {
+                    <dt class="col-12 mt-3">Descriptor</dt>
+                    <dd class="col-12"><code class="user-select-all">@Payload.Descriptor</code></dd>
+                }
+            </dl>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public PayloadV1_1? Payload { get; set; }
+
+    bool revealTopSeed;
+    readonly HashSet<string> revealedCosigners = new();
+
+    void Reveal(string cosignerId) => revealedCosigners.Add(cosignerId);
+}

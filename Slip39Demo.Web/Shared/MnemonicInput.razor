@@ -1,0 +1,48 @@
+@using Microsoft.AspNetCore.Components.Forms
+
+<div class="card mb-3">
+    <div class="card-header">SLIP-39 mnemonics</div>
+    <div class="card-body p-3">
+        <p class="small text-muted mb-2">
+            Paste one mnemonic per line, OR upload the share <code>.zip</code> files
+            you received. Each non-empty line is treated as one share.
+        </p>
+        <textarea class="form-control form-control-sm font-monospace" rows="8"
+                  @bind="MnemonicText" @bind:event="oninput"
+                  placeholder="abandon ability able about above absent ...&#10;academic acid acquire ..."></textarea>
+        <InputFile class="form-control form-control-sm mt-2" multiple OnChange="HandleFilesAsync" accept=".zip,.slip39,.txt" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public string MnemonicText { get; set; } = "";
+    [Parameter] public EventCallback<string> MnemonicTextChanged { get; set; }
+
+    async Task HandleFilesAsync(InputFileChangeEventArgs e)
+    {
+        var added = new List<string>();
+        foreach (var file in e.GetMultipleFiles(maximumFileCount: 32))
+        {
+            if (file.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                using var ms = new MemoryStream();
+                await file.OpenReadStream(maxAllowedSize: 1_000_000).CopyToAsync(ms);
+                ms.Position = 0;
+                using var archive = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Read);
+                var entry = archive.GetEntry("share.slip39");
+                if (entry is null) continue;
+                using var reader = new StreamReader(entry.Open());
+                added.Add((await reader.ReadToEndAsync()).Trim());
+            }
+            else
+            {
+                using var reader = new StreamReader(file.OpenReadStream(maxAllowedSize: 100_000));
+                added.Add((await reader.ReadToEndAsync()).Trim());
+            }
+        }
+        var newText = string.IsNullOrWhiteSpace(MnemonicText)
+            ? string.Join('\n', added)
+            : MnemonicText + "\n" + string.Join('\n', added);
+        await MnemonicTextChanged.InvokeAsync(newText);
+    }
+}
