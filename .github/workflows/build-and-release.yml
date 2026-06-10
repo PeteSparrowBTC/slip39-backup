@@ -32,19 +32,34 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Setup .NET SDK
+      # Step 2: Setup .NET SDK 10
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
 
-      # Step 3: Restore NuGet dependencies
+      # Step 2b: Install the Go `age` CLI so the cross-tool interop tests in
+      # Slip39Demo.Tests actually execute on CI rather than skipping with
+      # "age CLI not on PATH". Ubuntu's age package is the upstream Go binary.
+      - name: Install age
+        run: sudo apt-get update && sudo apt-get install -y age
+
+      # Step 3: Restore NuGet dependencies for the whole solution
+      # (Slip39Demo.Web, Slip39Demo.Core, Slip39Demo.Tests — all targeting net10.0).
       - name: Restore dependencies
-        run: dotnet restore Slip39Demo.Web/Slip39Demo.Web.csproj
+        run: dotnet restore Slip39Demo.sln
 
-      # Step 4: Build the application
+      # Step 4: Build the whole solution. Slip39Demo.Core has
+      # TreatWarningsAsErrors=true so any warning breaks the build.
       - name: Build
-        run: dotnet build Slip39Demo.Web/Slip39Demo.Web.csproj -c Release --no-restore
+        run: dotnet build Slip39Demo.sln -c Release --no-restore
+
+      # Step 4b: Run the test suite (xUnit) — Slip39Demo.Tests contains the
+      # payload/age/SLIP-39/BIP-32/verification round-trip tests plus the Go
+      # age CLI interop tests installed above. CI fails fast here if anything
+      # regresses; the publish/release steps below only run on a green test job.
+      - name: Test
+        run: dotnet test Slip39Demo.sln -c Release --no-build --verbosity normal
 
       # Step 5: Publish for GitHub Pages
       - name: Publish for GitHub Pages
