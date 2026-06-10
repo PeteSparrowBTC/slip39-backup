@@ -1,0 +1,49 @@
+@page "/"
+
+<PageTitle>SLIP-39 + age wallet backup</PageTitle>
+
+<div class="container py-5">
+    <div class="text-center mb-5">
+        <h1 class="text-white">🔐 SLIP-39 + age wallet backup</h1>
+        <p class="lead text-muted">
+            Secure your BIP-39 wallet with threshold secret-sharing and age encryption.
+            100% client-side, safe for offline Tails use.
+        </p>
+    </div>
+
+    <div class="row g-4 justify-content-center">
+        <div class="col-md-5">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center p-4">
+                    <h2 class="card-title h4 mb-3">📤 Create backup</h2>
+                    <p class="card-text text-muted small">
+                        Enter your seed words, choose a threshold, and the tool produces a single
+                        <code>output.zip</code> containing your SLIP-39 share folders and the
+                        encrypted <code>payload.age</code> blob.
+                    </p>
+                    <a href="/owner" class="btn btn-primary mt-3">Start backup →</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-5">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center p-4">
+                    <h2 class="card-title h4 mb-3">📥 Recover wallet</h2>
+                    <p class="card-text text-muted small">
+                        Gather threshold-many SLIP-39 mnemonics and the <code>payload.age</code>
+                        ciphertext, then reconstruct your seed words and passphrase here.
+                    </p>
+                    <a href="/recoverer" class="btn btn-success mt-3">Start recovery →</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="text-center mt-5">
+        <small class="text-muted">
+            Phase 1 backend tests pass. Phase 2 wires this UI to the core library.
+            See <a href="https://github.com/PeteSparrowBTC/Seed-Phrase-Storage-SLIP39" class="text-info">the repo</a>
+            for the spec and recovery procedure.
+        </small>
+    </div>
+</div>
