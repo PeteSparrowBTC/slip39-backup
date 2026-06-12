@@ -57,8 +57,8 @@ public class AgeGoCliInteropTests
         }
         finally
         {
-            File.Delete(ctPath);
-            if (File.Exists(ptPath)) File.Delete(ptPath);
+            BestEffortDelete(ctPath);
+            BestEffortDelete(ptPath);
         }
     }
 
@@ -100,8 +100,28 @@ public class AgeGoCliInteropTests
         }
         finally
         {
-            if (File.Exists(ptPath)) File.Delete(ptPath);
-            if (File.Exists(ctPath)) File.Delete(ctPath);
+            BestEffortDelete(ptPath);
+            BestEffortDelete(ctPath);
+        }
+    }
+
+    // Windows can briefly hold a file handle after the child age.exe exits — a
+    // straight File.Delete on the temp file races against kernel-side handle
+    // release and throws IOException. Retry a few times with short sleeps,
+    // then silently give up (these are temp files; the OS reclaims them).
+    static void BestEffortDelete(string path)
+    {
+        for (var i = 0; i < 5; i++)
+        {
+            try
+            {
+                if (File.Exists(path)) File.Delete(path);
+                return;
+            }
+            catch (IOException)
+            {
+                Thread.Sleep(100);
+            }
         }
     }
 }
