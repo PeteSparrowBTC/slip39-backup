@@ -4,12 +4,17 @@ name: Build and Release SLIP-39 App
 # Triggers:
 # - On push to main: Builds, deploys to GitHub Pages
 # - On tag push (v*): Builds, publishes, and creates a GitHub release with downloadable assets
+# - On pull_request to main: Builds + tests only (no deploy / no release) so PR
+#   feedback runs the cross-tool age interop + bUnit + Core test suite before merge.
 on:
   push:
     branches:
       - main
     tags:
       - 'v*'  # Triggers on version tags like v1.0.0, v1.1.0, etc.
+  pull_request:
+    branches:
+      - main
 
 # Permissions required for creating releases, uploading artifacts, and deploying to Pages
 permissions:
