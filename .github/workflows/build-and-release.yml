@@ -33,9 +33,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout the repository code
+      # Step 1: Checkout the repository code (including submodules — Slip39Demo.Core
+      # ProjectReferences the patched AgeSharp fork at third_party/AgeSharp; without
+      # submodules: recursive the runner gets an empty third_party/ and the build
+      # fails with "Age.csproj does not exist").
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       # Step 2: Setup .NET SDK 10
       - name: Setup .NET
