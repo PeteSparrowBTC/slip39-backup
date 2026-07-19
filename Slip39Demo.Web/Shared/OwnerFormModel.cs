@@ -20,7 +20,6 @@ public sealed class CosignerVm
     public string? Passphrase { get; set; }
     public string DerivationPath { get; set; } = "m/84'/0'/0'";
     public string? SeedWords { get; set; }
-    public string? XpubFingerprint { get; set; }
 }
 
 public sealed class ShareGroupVm

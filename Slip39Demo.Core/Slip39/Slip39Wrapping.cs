@@ -127,8 +127,17 @@ public static class Slip39Wrapping
         try
         {
             var shares = mnemonics.Select(Share.Parse).ToArray();
+
+            // Xecrets' CombineShares requires EXACTLY the threshold number of shares —
+            // both member-threshold-many shares per group and group-threshold-many
+            // groups. Handing it MORE (e.g. all 5 shares of a 3-of-5) makes it return
+            // an empty secret, surfacing as a bogus "insufficient shares" error. But
+            // the natural recovery action is to paste EVERY share you hold, so we
+            // down-select to a minimal satisfying subset before combining.
+            var selected = SelectMinimalSubset(shares);
+
             var sss = new ShamirsSecretSharing(new StrongRandom());
-            var recovered = sss.CombineShares(shares, "");
+            var recovered = sss.CombineShares(selected, "");
             return recovered.Secret.Length == 0
                 ? Result.Failure<byte[]>("SLIP-39 combine failed: insufficient shares to reconstruct the secret")
                 : Result.Success(recovered.Secret);
@@ -137,5 +146,37 @@ public static class Slip39Wrapping
         {
             return Result.Failure<byte[]>($"SLIP-39 combine failed: {ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    // Reduces a pile of shares (possibly more than needed, possibly with duplicate
+    // member indices) to the minimal subset Xecrets can combine: exactly
+    // member-threshold distinct members from exactly group-threshold satisfiable
+    // groups. Each share self-describes its group/member indices and thresholds in
+    // its prefix, so no external configuration is required. If the shares can't
+    // satisfy the group threshold, the whole (unreduced) set is returned so the
+    // downstream CombineShares produces a genuine insufficient-shares failure.
+    static Share[] SelectMinimalSubset(IReadOnlyList<Share> shares)
+    {
+        if (shares.Count == 0)
+            return [];
+
+        var groupThreshold = shares[0].Prefix.GroupThreshold;
+
+        // Per SLIP-39 group: dedupe by member index, then — if the group has at
+        // least member-threshold distinct members — keep exactly that many.
+        var satisfiedGroups = shares
+            .GroupBy(s => s.Prefix.GroupIndex)
+            .Select(g => new
+            {
+                MemberThreshold = g.First().Prefix.MemberThreshold,
+                Members = g.GroupBy(s => s.Prefix.MemberIndex).Select(m => m.First()).ToList(),
+            })
+            .Where(g => g.Members.Count >= g.MemberThreshold)
+            .Select(g => g.Members.Take(g.MemberThreshold).ToArray())
+            .ToList();
+
+        return satisfiedGroups.Count < groupThreshold
+            ? shares.ToArray()
+            : satisfiedGroups.Take(groupThreshold).SelectMany(g => g).ToArray();
     }
 }

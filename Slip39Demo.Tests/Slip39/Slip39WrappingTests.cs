@@ -37,6 +37,28 @@ public class Slip39WrappingTests
     }
 
     [Fact]
+    public void SplitThenCombine_SingleGroup_3of5_WithAllFiveShares_RecoversK()
+    {
+        // The UI hands CombineMnemonics EVERY share the user pastes, not exactly
+        // threshold-many. This pins that providing MORE than the threshold (all 5
+        // of a 3-of-5) still reconstructs K — the natural "I have all my shares"
+        // recovery path. Regression guard for the "insufficient shares" bug seen
+        // in the browser when all five were supplied.
+        var cfg = new GroupConfig(
+            GroupThreshold: 1,
+            Groups: [new ShareGroup("only", Threshold: 3, Count: 5)],
+            Extendable: true);
+
+        var split = Slip39Wrapping.SplitKey(FixedK, cfg).Value;
+        split.Should().HaveCount(5);
+
+        var combined = Slip39Wrapping.CombineMnemonics(split); // ALL FIVE
+
+        combined.IsSuccess.Should().BeTrue();
+        combined.Value.Should().Equal(FixedK);
+    }
+
+    [Fact]
     public void SplitKey_NonExtendable_IsRejectedByWrapper()
     {
         // Xecrets.Slip39 2.3.1315's Feistel cipher is broken on the

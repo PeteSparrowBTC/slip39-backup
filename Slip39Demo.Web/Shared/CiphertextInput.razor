@@ -7,8 +7,11 @@
             Paste the ASCII-armored text (begins with <code>-----BEGIN AGE ENCRYPTED FILE-----</code>),
             OR upload the binary <code>payload.age</code> file.
         </p>
+        @* get/set two-way bind so pasted/typed armor text reaches the parent. A plain
+           @bind on the [Parameter] would only update the local copy (same bug as
+           MnemonicInput) and Recover would never see the ciphertext. *@
         <textarea class="form-control form-control-sm font-monospace" rows="6"
-                  @bind="ArmorText" @bind:event="oninput"
+                  @bind:get="ArmorText" @bind:set="v => ArmorTextChanged.InvokeAsync(v)" @bind:event="oninput"
                   placeholder="-----BEGIN AGE ENCRYPTED FILE-----&#10;..."></textarea>
         <InputFile class="form-control form-control-sm mt-2" OnChange="HandleFileAsync" accept=".age,.txt" />
         @if (binaryFileName is not null)

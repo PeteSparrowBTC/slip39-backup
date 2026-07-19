@@ -7,8 +7,13 @@
             Paste one mnemonic per line, OR upload the share <code>.zip</code> files
             you received. Each non-empty line is treated as one share.
         </p>
+        @* Two-way bind to the PARENT via get/set. A plain @bind="MnemonicText" on a
+           [Parameter] only mutates the local copy and never fires MnemonicTextChanged,
+           so the parent (Recoverer) never sees typed/pasted text — recovery then reports
+           "Paste at least one SLIP-39 mnemonic" despite a full textarea. @bind:set routes
+           every keystroke/paste up through the change callback. *@
         <textarea class="form-control form-control-sm font-monospace" rows="8"
-                  @bind="MnemonicText" @bind:event="oninput"
+                  @bind:get="MnemonicText" @bind:set="v => MnemonicTextChanged.InvokeAsync(v)" @bind:event="oninput"
                   placeholder="abandon ability able about above absent ...&#10;academic acid acquire ..."></textarea>
         <InputFile class="form-control form-control-sm mt-2" multiple OnChange="HandleFilesAsync" accept=".zip,.slip39,.txt" />
     </div>

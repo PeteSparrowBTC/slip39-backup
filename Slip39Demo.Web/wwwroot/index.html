@@ -30,6 +30,11 @@
     </div>
     <script src="scroll.js"></script>
     <script src="download.js"></script>
+    <!-- Third-party slip39-js + typage bundle (window.SPSVerify). Every generated
+         backup is independently round-tripped through these libs before the tool
+         will hand it out — a bug in the C# generation stack cannot vouch for
+         itself. Bundled locally (tools/independent-verify) — no CDN, offline-safe. -->
+    <script src="js/independent-verify.min.js"></script>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
 </body>
 

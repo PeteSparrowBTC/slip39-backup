@@ -1,4 +1,5 @@
 @using Slip39Demo.Web.Shared
+@using Slip39Demo.Core.Bip32
 
 <div class="card mb-3">
     <div class="card-body p-3">
@@ -12,28 +13,34 @@
 
         <div class="mb-2">
             <label class="form-label small">ID</label>
-            <input class="form-control form-control-sm" @bind="Vm.Id" placeholder="e.g. main, trezor, cosigner_a" />
+            <input class="form-control form-control-sm" @bind="Vm.Id" @bind:after="NotifyChanged" placeholder="e.g. main, trezor, cosigner_a" />
         </div>
 
         <div class="mb-2">
             <label class="form-label small">Seed words (leave empty to use top-level seed)</label>
-            <input class="form-control form-control-sm font-monospace" @bind="Vm.SeedWords"
+            <input class="form-control form-control-sm font-monospace" @bind="Vm.SeedWords" @bind:after="NotifyChanged"
                    placeholder="abandon ability able about ..." />
         </div>
 
         <div class="mb-2">
             <label class="form-label small">Passphrase (optional)</label>
-            <input class="form-control form-control-sm" @bind="Vm.Passphrase" placeholder="Leave empty if no passphrase" />
+            <input class="form-control form-control-sm" @bind="Vm.Passphrase" @bind:after="NotifyChanged" placeholder="Leave empty if no passphrase" />
         </div>
 
         <div class="mb-2">
             <label class="form-label small">Derivation path</label>
-            <input class="form-control form-control-sm font-monospace" @bind="Vm.DerivationPath" />
+            <input class="form-control form-control-sm font-monospace" @bind="Vm.DerivationPath" @bind:after="NotifyChanged" />
         </div>
 
+        @* Wallet fingerprint is DERIVED from the seed + passphrase, not typed. The
+           tool already has both, so it computes the same 8-hex-char master fingerprint
+           your wallet software shows — a non-secret ID to confirm "this is the right
+           wallet" at recovery. Read-only: nothing to fat-finger. *@
         <div class="mb-2">
-            <label class="form-label small">Xpub fingerprint (optional, hex)</label>
-            <input class="form-control form-control-sm font-monospace" @bind="Vm.XpubFingerprint" placeholder="8 hex chars" />
+            <label class="form-label small">Wallet fingerprint (auto-computed)</label>
+            <input class="form-control form-control-sm font-monospace" value="@ComputedFingerprint" readonly disabled
+                   placeholder="—" />
+            <div class="form-text small">@FingerprintHint</div>
         </div>
     </div>
 </div>
@@ -43,4 +50,46 @@
     [Parameter] public int Index { get; set; }
     [Parameter] public bool Removable { get; set; }
     [Parameter] public EventCallback OnRemove { get; set; }
+
+    // Editing a bound field mutates the shared Vm and re-renders THIS editor, but not
+    // the parent — so the parent's live cosigner warnings/duplicate-block would go
+    // stale. Firing this callback after each change makes the parent re-render.
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    Task NotifyChanged() => OnChanged.InvokeAsync();
+
+    // The seed actually used by this cosigner: its own words, or the shared
+    // top-level seed when it leaves the field empty (mirrors Owner.razor's payload
+    // build). Empty when neither is available yet.
+    [Parameter] public string? TopLevelSeed { get; set; }
+
+    string EffectiveSeed =>
+        !string.IsNullOrWhiteSpace(Vm.SeedWords) ? Vm.SeedWords! : (TopLevelSeed ?? "");
+
+    // Recomputed on each render (cheap: one PBKDF2 + one EC multiply). @bind fires on
+    // change, so the value refreshes when the user leaves the seed/passphrase field.
+    string ComputedFingerprint =>
+        string.IsNullOrWhiteSpace(EffectiveSeed) ? "" : SafeCompute(EffectiveSeed, Vm.Passphrase);
+
+    string FingerprintHint =>
+        string.IsNullOrWhiteSpace(EffectiveSeed)
+            ? "Enter seed words (or a top-level seed) to see the fingerprint."
+            : !string.IsNullOrWhiteSpace(Vm.SeedWords)
+                ? "Derived from this cosigner's seed + passphrase. Match it against your wallet."
+                : "Derived from the top-level seed + this cosigner's passphrase.";
+
+    // Never let a compute error break the form — an unparseable seed simply shows "—".
+    static string SafeCompute(string seed, string? passphrase)
+    {
+        try
+        {
+            return Bip32MasterFingerprint
+                .Compute(seed, string.IsNullOrEmpty(passphrase) ? null : passphrase)
+                .ToString();
+        }
+        catch
+        {
+            return "";
+        }
+    }
 }

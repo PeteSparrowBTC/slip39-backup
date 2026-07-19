@@ -1,6 +1,5 @@
 using FluentAssertions;
 using Slip39Demo.Core.Bundle;
-using Slip39Demo.Core.Slip39;
 using Xunit;
 
 namespace Slip39Demo.Tests.Bundle;
@@ -8,12 +7,9 @@ namespace Slip39Demo.Tests.Bundle;
 public class ReadmeTemplateTests
 {
     [Fact]
-    public void Build_SingleGroup_ContainsExpectedHeaders()
+    public void Build_ContainsRecovererFacingContent()
     {
-        var cfg = new GroupConfig(1, [new ShareGroup("only", 3, 5)], true);
-
         var readme = ReadmeTemplate.Build(
-            cfg: cfg,
             groupName: "only",
             shareIndex: 2,
             shareCountInGroup: 5,
@@ -31,21 +27,27 @@ public class ReadmeTemplateTests
     }
 
     [Fact]
-    public void Build_MultiGroup_ListsEveryGroup()
+    public void Build_TellsHolderTheyNeedDoNothing()
     {
-        var cfg = new GroupConfig(
-            GroupThreshold: 2,
-            Groups: [
-                new ShareGroup("personal-1", 1, 1),
-                new ShareGroup("friends", 3, 5),
-                new ShareGroup("family", 2, 6)],
-            Extendable: true);
+        var readme = ReadmeTemplate.Build("only", 1, 5, "2026-05-21", "2.0.0");
 
-        var readme = ReadmeTemplate.Build(cfg, "family", 3, 6, "2026-05-21", "2.0.0");
+        readme.Should().Contain("only HOLDING");
+        readme.Should().Contain("store it safely");
+    }
 
-        readme.Should().Contain("personal-1: 1-of-1");
-        readme.Should().Contain("friends: 3-of-5");
-        readme.Should().Contain("family: 2-of-6");
-        readme.Should().Contain("Group threshold: any 2 of 3 groups recover");
+    [Fact]
+    public void Build_DoesNotLeakThresholdStructure_NorCallShareUseless()
+    {
+        // A share must not reveal the scheme to its holder: no threshold / group
+        // breakdown (redundant — SLIP-39 encodes the required count in the mnemonic),
+        // and it must not tell the holder the share is "useless" alone (invites
+        // carelessness). Guards the deliberate omissions.
+        var readme = ReadmeTemplate.Build("family", 3, 6, "2026-05-21", "2.0.0");
+
+        readme.Should().NotContain("Group threshold");
+        readme.Should().NotContain("groups recover");
+        readme.Should().NotContain("3-of-5");
+        readme.Should().NotContainEquivalentOf("reveals nothing");
+        readme.Should().NotContainEquivalentOf("cryptographically useless");
     }
 }

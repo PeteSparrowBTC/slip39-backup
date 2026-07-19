@@ -1,0 +1,18 @@
+{
+  "name": "independent-verify",
+  "private": true,
+  "description": "Bundles third-party slip39-js + typage into wwwroot/js/independent-verify.min.js for in-browser independent backup verification. Deliberately independent of the C# generation stack (AgeSharp / Xecrets.Slip39) so generation bugs cannot vouch for themselves.",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src.mjs --bundle --minify --format=iife --alias:crypto=./crypto-shim.mjs --inject:./buffer-shim.mjs --define:global=globalThis --outfile=../../Slip39Demo.Web/wwwroot/js/independent-verify.min.js"
+  },
+  "dependencies": {
+    "@noble/hashes": "^2.0.1",
+    "age-encryption": "0.3.0",
+    "buffer": "^6.0.3",
+    "slip39": "0.1.9"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}
