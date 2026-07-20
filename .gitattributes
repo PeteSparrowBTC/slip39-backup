@@ -1,0 +1,9 @@
+# Shell scripts and the AppImage entrypoint MUST keep LF endings — a CRLF in a
+# shebang line breaks execution on Linux (where the AppImage is built and run).
+*.sh          text eol=lf
+AppRun        text eol=lf
+*.desktop     text eol=lf
+
+# JS/CSS/JSON served or bundled — normalize to LF for stable diffs and hashing.
+*.mjs         text eol=lf
+*.js          text eol=lf

@@ -28,9 +28,21 @@ public static class ReadmeTemplate
         int shareIndex,
         int shareCountInGroup,
         string createdDate,
-        string toolVersion)
+        string toolVersion,
+        bool testOnly = false)
     {
         var sb = new StringBuilder();
+
+        // ── Test watermark: generated online or without the airgap attestation.
+        //    Baked into the artifact itself (not just the UI/filename) so a
+        //    test share can never quietly graduate into a real backup.
+        if (testOnly)
+        {
+            sb.AppendLine("!!!! INSECURE TEST BACKUP — DO NOT USE FOR REAL FUNDS !!!!");
+            sb.AppendLine("Generated in an unverified environment (machine online or");
+            sb.AppendLine("airgap not confirmed). For practice and testing only.");
+            sb.AppendLine();
+        }
 
         // ── Header: identifies which share this is (matches the zip filename) and
         //    the tool that made it. No threshold is revealed here.
@@ -74,7 +86,12 @@ public static class ReadmeTemplate
         sb.AppendLine("  3. The decrypted file holds the wallet's seed words, optional");
         sb.AppendLine("     passphrase, derivation path, and label.");
         sb.AppendLine();
-        sb.AppendLine("This share's mnemonic is in the file `share.slip39`.");
+        sb.AppendLine("This share's mnemonic is in the file `share.slip39`, and as a");
+        sb.AppendLine("QR code in `share-qr.png` (scanning it yields the words directly).");
+        sb.AppendLine();
+        sb.AppendLine("Full step-by-step instructions for recovering WITHOUT this");
+        sb.AppendLine("tool — using only standard SLIP-39 and age software — are in");
+        sb.AppendLine("the file `MANUAL-RECOVERY.txt` next to this README.");
 
         // ── Fallback tools: in case the original tool is gone, name the interop alternatives.
         sb.AppendLine();
@@ -83,9 +100,13 @@ public static class ReadmeTemplate
         sb.AppendLine("────────────────────────────────────────────────────────────────");
         sb.AppendLine();
         sb.AppendLine("SLIP-39 reconstruction:");
-        sb.AppendLine("  - iancoleman/slip39  https://iancoleman.io/slip39/");
-        sb.AppendLine("  - python-shamir-mnemonic  https://github.com/trezor/python-shamir-mnemonic");
+        sb.AppendLine("  - python-shamir-mnemonic (reference)  https://github.com/trezor/python-shamir-mnemonic");
+        sb.AppendLine("  - revised web page  https://3rditeration.github.io/slip39/src/");
+        sb.AppendLine("  - slip39-js  https://github.com/ilap/slip39-js");
         sb.AppendLine("  - Xecrets.Slip39  https://github.com/xecrets/xecrets-slip39");
+        sb.AppendLine("  (NOTE: the original iancoleman.io/slip39 web page does not support");
+        sb.AppendLine("   the extendable shares this backup uses, as of 2026 — use the");
+        sb.AppendLine("   revised page above instead.)");
         sb.AppendLine();
         sb.AppendLine("age decryption:");
         sb.AppendLine("  - age (Go)   https://github.com/FiloSottile/age");

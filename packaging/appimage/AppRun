@@ -1,0 +1,16 @@
+#!/bin/sh
+# AppImage entrypoint for the SLIP-39 backup tool.
+# Starts the bundled self-contained server (loopback only) and tries to open
+# the user's browser at it. Fully offline — the server binds 127.0.0.1 only.
+#
+#   ./SPS-SLIP39.AppImage              -> http://127.0.0.1:9876
+#   SPS_PORT=9999 ./SPS-SLIP39.AppImage
+HERE="$(dirname "$(readlink -f "$0")")"
+PORT="${SPS_PORT:-9876}"
+
+# Open the browser once the server is up. On Tails, xdg-open targets Tor
+# Browser, which blocks localhost by default — the printed URL + the packaged
+# instructions cover that case (see TAILS_INSTRUCTIONS.md).
+( sleep 2; xdg-open "http://127.0.0.1:$PORT" >/dev/null 2>&1 || true ) &
+
+exec "$HERE/usr/bin/Slip39Demo.Host" --port "$PORT"

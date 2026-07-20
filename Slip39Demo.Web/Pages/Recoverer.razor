@@ -14,6 +14,10 @@
         <a href="/" class="btn btn-sm btn-outline-secondary">← Home</a>
     </div>
 
+    @* Recovery also handles the seed — same airgap indicator as Owner mode
+       (informational here; recovery is not watermark-gated). *@
+    <ConnectivityBanner />
+
     <div class="row g-3">
         <div class="col-lg-6">
             <MnemonicInput @bind-MnemonicText="mnemonicText" />

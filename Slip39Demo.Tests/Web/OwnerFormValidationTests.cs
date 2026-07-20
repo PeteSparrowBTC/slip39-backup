@@ -19,9 +19,26 @@ public class OwnerFormValidationTests : TestContext
 {
     public OwnerFormValidationTests()
     {
-        // Default: verification passes. Individual tests override with a failing
-        // verifier to exercise the refusal path.
+        // Defaults: verification passes, machine is OFFLINE. Individual tests
+        // override to exercise the refusal / watermark paths.
         Services.AddSingleton<IIndependentVerifier>(new FakeVerifier(Result.Success()));
+        Services.AddSingleton<IConnectivityProbe>(new FakeProbe(online: false));
+    }
+
+    // Scripted connectivity probe for the airgap gate.
+    sealed class FakeProbe(bool online) : IConnectivityProbe
+    {
+        public Task<bool> IsOnlineAsync() => Task.FromResult(online);
+    }
+
+    // Waits for the banner's first probe to land, then (optionally) ticks the
+    // airgap attestation — the preconditions for a clean, unwatermarked backup.
+    static void AttestOffline(IRenderedComponent<Owner> cut, bool attest = true)
+    {
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("No internet reachable"),
+            timeout: TimeSpan.FromSeconds(10));
+        if (attest)
+            cut.Find("#airgap-attest").Change(true);
     }
 
     // Fake IFileDownloader that captures download attempts instead of
@@ -202,7 +219,7 @@ public class OwnerFormValidationTests : TestContext
     }
 
     [Fact]
-    public void Generate_WithValidSeed_TriggersDownload()
+    public void Generate_OfflineAndAttested_TriggersCleanDownload()
     {
         var downloader = new NoopDownloader();
         Services.AddSingleton<IFileDownloader>(downloader);
@@ -216,16 +233,65 @@ public class OwnerFormValidationTests : TestContext
         var seedInput = cut.FindAll("input.font-monospace").First();
         seedInput.Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
 
+        AttestOffline(cut); // offline probe landed + attestation ticked → clean backup
+
         cut.Find("button.btn-primary").Click();
 
         cut.WaitForAssertion(() =>
         {
-            // Filename is now date-stamped and label-slugged. The default form
-            // label is "Main wallet", so it becomes
+            // Filename is date-stamped and label-slugged, and NOT watermarked. The
+            // default form label is "Main wallet", so it becomes
             // "slip39-wallet-backup-main-wallet-<yyyy-MM-dd>.zip".
             downloader.Calls.Should().ContainSingle(c =>
                 Regex.IsMatch(c.Filename, @"^slip39-wallet-backup-main-wallet-\d{4}-\d{2}-\d{2}\.zip$")
                 && c.Mime == "application/zip");
+        }, timeout: TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
+    public void Generate_WithoutAttestation_IsWatermarkedInsecureTest()
+    {
+        // Offline probe alone is NOT enough — the user must also attest the
+        // airgap. Unattested generation must carry the INSECURE-TEST watermark.
+        var downloader = new NoopDownloader();
+        Services.AddSingleton<IFileDownloader>(downloader);
+
+        var cut = RenderComponent<Owner>();
+        cut.FindAll("input.font-monospace").First()
+            .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+        AttestOffline(cut, attest: false);
+
+        cut.Find("button.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            downloader.Calls.Should().ContainSingle(c => c.Filename.StartsWith("INSECURE-TEST-"));
+            cut.Markup.Should().Contain("INSECURE-TEST backup (practice only)");
+        }, timeout: TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
+    public void Generate_WhenOnline_IsWatermarkedInsecureTest_EvenIfAttested()
+    {
+        // The probe outranks the checkbox: internet reachable → watermark,
+        // regardless of what the user attests.
+        var downloader = new NoopDownloader();
+        Services.AddSingleton<IFileDownloader>(downloader);
+        Services.AddSingleton<IConnectivityProbe>(new FakeProbe(online: true));
+
+        var cut = RenderComponent<Owner>();
+        cut.FindAll("input.font-monospace").First()
+            .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("ONLINE"),
+            timeout: TimeSpan.FromSeconds(10));
+        cut.Find("#airgap-attest").Change(true);
+
+        cut.Find("button.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            downloader.Calls.Should().ContainSingle(c => c.Filename.StartsWith("INSECURE-TEST-"));
         }, timeout: TimeSpan.FromSeconds(10));
     }
 }

@@ -1,0 +1,79 @@
+@using Slip39Demo.Web.Services
+@implements IDisposable
+
+@* The airgap indicator. Red + loud when the internet is reachable (the one
+   state that must never go unnoticed on a page that handles seeds), quiet
+   green when no internet is reachable, neutral while the first probe runs.
+   Re-checks every 10 seconds so pulling the cable flips it live. *@
+@if (isOnline is null)
+{
+    <div class="alert alert-secondary small p-2 mb-3">Checking network status…</div>
+}
+else if (isOnline == true)
+{
+    <div class="alert alert-danger p-2 mb-3">
+        <strong>⚠ This machine is ONLINE.</strong> Disconnect from the internet
+        (ideally boot Tails and stay offline) before entering any seed.
+        Backups generated while online are marked <strong>INSECURE-TEST</strong>
+        and must not be used for real funds.
+    </div>
+}
+else
+{
+    <div class="alert alert-success small p-2 mb-3">✓ No internet reachable — offline.</div>
+}
+
+@code {
+    [Inject] IConnectivityProbe Probe { get; set; } = null!;
+
+    // Parent pages subscribe to gate their behaviour (Owner watermarks backups
+    // generated while online).
+    [Parameter] public EventCallback<bool> OnlineChanged { get; set; }
+
+    bool? isOnline;
+    readonly CancellationTokenSource cts = new();
+
+    // First check after the first render (never during it — a raw Timer firing
+    // pre-render breaks the renderer), then a PeriodicTimer loop so pulling the
+    // network cable flips the banner live.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+        await CheckAsync();
+        _ = LoopAsync();
+    }
+
+    async Task LoopAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cts.Token))
+                await CheckAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // component disposed — loop ends
+        }
+    }
+
+    async Task CheckAsync()
+    {
+        var value = await Probe.IsOnlineAsync();
+        if (value == isOnline)
+            return;
+        isOnline = value;
+        await InvokeAsync(async () =>
+        {
+            await OnlineChanged.InvokeAsync(value);
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        cts.Cancel();
+        cts.Dispose();
+    }
+}

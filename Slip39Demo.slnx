@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="Slip39Demo.Core/Slip39Demo.Core.csproj" />
+  <Project Path="Slip39Demo.Host/Slip39Demo.Host.csproj" />
   <Project Path="Slip39Demo.Tests/Slip39Demo.Tests.csproj" />
   <Project Path="Slip39Demo.Web/Slip39Demo.Web.csproj" />
 </Solution>

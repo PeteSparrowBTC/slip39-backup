@@ -19,6 +19,8 @@
         <a href="/" class="btn btn-sm btn-outline-secondary">← Home</a>
     </div>
 
+    <ConnectivityBanner OnlineChanged="v => machineOnline = v" />
+
     <div class="row g-3">
         <div class="col-lg-7">
             <div class="card mb-3">
@@ -80,6 +82,27 @@
                         dated zip (e.g. <code>slip39-wallet-backup-main-wallet-2026-07-19.zip</code>).
                     </p>
 
+                    @* Airgap attestation: the tool cannot PROVE the environment is safe
+                       (a web page cannot detect Tails), so a real backup requires the
+                       offline probe to pass AND this deliberate confirmation. Anything
+                       less is watermarked INSECURE-TEST. *@
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="airgap-attest" @bind="attested" />
+                        <label class="form-check-label small" for="airgap-attest">
+                            I confirm this machine is offline / airgapped (ideally Tails)
+                            and will stay offline until this browser session ends.
+                        </label>
+                    </div>
+
+                    @if (IsTestOnly)
+                    {
+                        <div class="alert alert-warning small p-2">
+                            ⚠ This backup will be marked <strong>INSECURE-TEST</strong>
+                            (@(machineOnline != false ? "internet reachable" : "environment not attested")) —
+                            usable for practice only, never for real funds.
+                        </div>
+                    }
+
                     @if (errorMessage is not null)
                     {
                         <div class="alert alert-danger small p-2">@errorMessage</div>
@@ -114,6 +137,14 @@
     bool isGenerating;
     string? errorMessage;
     string? successMessage;
+
+    // Environment gate. machineOnline: null until the first probe completes.
+    // A REAL (unwatermarked) backup requires probe==offline AND the user's
+    // explicit attestation — everything else is INSECURE-TEST. Fail-safe:
+    // unknown probe state counts as online.
+    bool? machineOnline;
+    bool attested;
+    bool IsTestOnly => machineOnline != false || !attested;
 
     async Task GenerateAsync()
     {
@@ -152,10 +183,11 @@
             // of a pile of identical "output.zip" files. Shape:
             //   slip39-wallet-backup-<label-slug>-<yyyy-MM-dd>.zip   (label present)
             //   slip39-wallet-backup-<yyyy-MM-dd>.zip                (no label)
-            var fileName = BuildBundleFileName(model.Label);
+            var fileName = BuildBundleFileName(model.Label, IsTestOnly);
             await Downloader.DownloadAsync(fileName, outcome.Bundle, "application/zip");
             successMessage =
-                $"Generated {outcome.MnemonicCount} share(s), independently verified ✓ "
+                (IsTestOnly ? "INSECURE-TEST backup (practice only). " : "")
+                + $"Generated {outcome.MnemonicCount} share(s), independently verified ✓ "
                 + $"(recovered by slip39-js + typage). Wallet master fingerprint: {outcome.Fingerprint}. "
                 + $"Bundle downloaded as {fileName}.";
         }
@@ -247,7 +279,7 @@
             var g = cfg.Groups[gi];
             for (var mi = 0; mi < g.Count; mi++)
             {
-                var readme = ReadmeTemplate.Build(g.Name, mi + 1, g.Count, $"{DateTime.UtcNow:yyyy-MM-dd}", "2.0.0");
+                var readme = ReadmeTemplate.Build(g.Name, mi + 1, g.Count, $"{DateTime.UtcNow:yyyy-MM-dd}", "2.0.0", IsTestOnly);
                 var folder = ShareFolder.Build(readme, mnemonics[flat]);
                 var zip = ShareZipWriter.Write(folder);
                 var fileName = cfg.Groups.Count == 1
@@ -280,13 +312,16 @@
     // Builds the download filename: "slip39-wallet-backup" (what it is) + an
     // optional slug of the wallet label + the UTC date (when it was made). Uses
     // the same UtcNow clock as the payload/README timestamps for consistency.
-    static string BuildBundleFileName(string? label)
+    // Test-only backups are prefixed INSECURE-TEST- so they can never be
+    // mistaken for a real backup on disk.
+    static string BuildBundleFileName(string? label, bool testOnly)
     {
         var datestamp = DateTime.UtcNow.ToString("yyyy-MM-dd");
         var slug = Slugify(label);
-        return string.IsNullOrEmpty(slug)
+        var name = string.IsNullOrEmpty(slug)
             ? $"slip39-wallet-backup-{datestamp}.zip"
             : $"slip39-wallet-backup-{slug}-{datestamp}.zip";
+        return testOnly ? $"INSECURE-TEST-{name}" : name;
     }
 
     // Lowercases, maps every non-alphanumeric run to a single hyphen, and trims

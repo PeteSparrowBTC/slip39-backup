@@ -9,6 +9,7 @@ namespace Slip39Demo.Core.Bundle;
 //   payload/payload.age.txt    ASCII-armored ciphertext
 //   payload/IMPORTANT-READ-FIRST.txt   PayloadReadme.Text
 //   verification-record.txt    VerificationRecord.Build(...) text
+//   MANUAL-RECOVERY.txt        tool-independent recovery manual
 //
 // The user receives ONE file via browser download, copies it onto their
 // output USB, then distributes pieces from there as per spec §6.4.
@@ -32,6 +33,10 @@ public static class OutputBundleBuilder
             AddEntry(archive, "payload/payload.age.txt", Encoding.UTF8.GetBytes(payloadAgeArmoredText));
             AddEntry(archive, "payload/IMPORTANT-READ-FIRST.txt", Encoding.UTF8.GetBytes(PayloadReadme.Text));
             AddEntry(archive, "verification-record.txt", Encoding.UTF8.GetBytes(verificationRecordText));
+            // Tool-independent recovery manual at the bundle root too (it is also
+            // inside every share zip): the owner's master copy should be complete
+            // even if the share zips are already distributed.
+            AddEntry(archive, ManualRecoveryGuide.FileName, Encoding.UTF8.GetBytes(ManualRecoveryGuide.Text));
         }
         return ms.ToArray();
     }

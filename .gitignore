@@ -19,6 +19,12 @@ publish/
 
 # JS tooling for the independent-verify bundle — sources are committed, deps are not
 tools/independent-verify/node_modules/
+
+# Built distributables (AppImage etc.) — produced by packaging scripts / CI, never committed
+dist/
+
+# Superpowers brainstorming session scratch (ports/tokens) — machine-local
+.superpowers/
 *.key
 *.crt
 

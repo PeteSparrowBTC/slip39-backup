@@ -13,6 +13,7 @@
          BouncyCastle-backed adapter so the library works under Blazor WASM. -->
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
     <PackageReference Include="CSharpFunctionalExtensions" Version="3.6.0" />
+    <PackageReference Include="QRCoder" Version="1.8.0" />
     <!-- 2.3.1668 is the first release carrying the GenerateId fix (xecrets/xecrets-slip39#28):
          id is now masked to 15 bits (& 0x7FFF) instead of `% ((1<<16)-1)`, which produced
          negative ids (OverflowException) or silently truncated 16-bit ids on the

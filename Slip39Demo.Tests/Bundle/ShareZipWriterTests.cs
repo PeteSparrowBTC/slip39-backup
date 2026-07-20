@@ -19,7 +19,7 @@ public class ShareZipWriterTests
         using var ms = new MemoryStream(zipBytes);
         using var archive = new ZipArchive(ms, ZipArchiveMode.Read);
 
-        archive.Entries.Select(e => e.FullName).Should().BeEquivalentTo(["README.txt", "share.slip39"]);
+        archive.Entries.Select(e => e.FullName).Should().BeEquivalentTo(["README.txt", "share.slip39", "share-qr.png", "MANUAL-RECOVERY.txt"]);
         using var reader = new StreamReader(archive.GetEntry("share.slip39")!.Open());
         reader.ReadToEnd().Should().Be("abandon ability able\n");
     }

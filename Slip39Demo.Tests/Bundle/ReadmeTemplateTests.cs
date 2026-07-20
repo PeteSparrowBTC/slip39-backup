@@ -27,6 +27,19 @@ public class ReadmeTemplateTests
     }
 
     [Fact]
+    public void Build_TestOnly_CarriesInsecureWatermark_DefaultDoesNot()
+    {
+        // The watermark must live in the ARTIFACT, not just the UI/filename, so a
+        // test share can never quietly pass as a real backup years later.
+        var test = ReadmeTemplate.Build("only", 1, 5, "2026-05-21", "2.0.0", testOnly: true);
+        var real = ReadmeTemplate.Build("only", 1, 5, "2026-05-21", "2.0.0");
+
+        test.Should().Contain("INSECURE TEST BACKUP");
+        test.Should().Contain("DO NOT USE FOR REAL FUNDS");
+        real.Should().NotContain("INSECURE TEST BACKUP");
+    }
+
+    [Fact]
     public void Build_TellsHolderTheyNeedDoNothing()
     {
         var readme = ReadmeTemplate.Build("only", 1, 5, "2026-05-21", "2.0.0");
