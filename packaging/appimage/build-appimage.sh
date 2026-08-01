@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds SPS-SLIP39-x86_64.AppImage — the native-window (Photino/WebKitGTK)
+# Builds slip39-backup-x86_64.AppImage — the native-window (Photino/WebKitGTK)
 # offline artifact for Tails 7+. Run on Linux (CI ubuntu runner, or WSL for
 # local builds; WSL only needs bash + curl — dotnet publish can run on Windows).
 #
@@ -35,9 +35,9 @@ fi
 APPDIR="$WORK/AppDir"
 mkdir -p "$APPDIR/usr/bin"
 cp "$SCRIPT_DIR/AppRun" "$APPDIR/AppRun"
-cp "$SCRIPT_DIR/sps-slip39.desktop" "$APPDIR/"
+cp "$SCRIPT_DIR/slip39-backup.desktop" "$APPDIR/"
 # Icon: reuse the app favicon (appimagetool requires an icon at the root).
-cp "$PUB_DIR/wwwroot/_content/Slip39Demo.UI/favicon.png" "$APPDIR/sps-slip39.png"
+cp "$PUB_DIR/wwwroot/_content/Slip39Demo.UI/favicon.png" "$APPDIR/slip39-backup.png"
 cp -r "$PUB_DIR/." "$APPDIR/usr/bin/"
 chmod +x "$APPDIR/AppRun" "$APPDIR/usr/bin/Slip39Demo.Desktop"
 

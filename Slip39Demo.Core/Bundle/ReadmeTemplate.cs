@@ -49,7 +49,7 @@ public static class ReadmeTemplate
         sb.AppendLine($"SLIP-39 SHARE BACKUP — {groupName} share {shareIndex} of {shareCountInGroup}");
         sb.AppendLine("================================================================");
         sb.AppendLine($"Created: {createdDate}");
-        sb.AppendLine($"Tool: Seed-Phrase-Storage-SLIP39 v{toolVersion}");
+        sb.AppendLine($"Tool: slip39-backup v{toolVersion}");
 
         // ── Holder-facing: one line, then explicitly off the hook.
         sb.AppendLine();
@@ -76,7 +76,7 @@ public static class ReadmeTemplate
         sb.AppendLine("  - The separate encrypted file `payload.age`, obtained from the");
         sb.AppendLine("    owner's password manager OR their offline backups.");
         sb.AppendLine("  - A clean offline machine — Tails ideally.");
-        sb.AppendLine("  - The SPS-SLIP39 tool that produced this share (or an");
+        sb.AppendLine("  - The slip39-backup tool that produced this share (or an");
         sb.AppendLine("    alternative below).");
         sb.AppendLine();
         sb.AppendLine("Steps:");
@@ -96,7 +96,7 @@ public static class ReadmeTemplate
         // ── Fallback tools: in case the original tool is gone, name the interop alternatives.
         sb.AppendLine();
         sb.AppendLine("────────────────────────────────────────────────────────────────");
-        sb.AppendLine("ALTERNATIVE TOOLS (if SPS-SLIP39 itself is unavailable)");
+        sb.AppendLine("ALTERNATIVE TOOLS (if slip39-backup itself is unavailable)");
         sb.AppendLine("────────────────────────────────────────────────────────────────");
         sb.AppendLine();
         sb.AppendLine("SLIP-39 reconstruction:");

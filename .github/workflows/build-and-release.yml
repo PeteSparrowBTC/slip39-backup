@@ -92,7 +92,7 @@ jobs:
       # Step 6: Fix base href for GitHub Pages
       - name: Fix base href
         run: |
-          sed -i 's|<base href="/" />|<base href="/Seed-Phrase-Storage-SLIP39/" />|' publish/wwwroot/index.html
+          sed -i 's|<base href="/" />|<base href="/slip39-backup/" />|' publish/wwwroot/index.html
 
       # Step 7: Add .nojekyll file
       - name: Add .nojekyll

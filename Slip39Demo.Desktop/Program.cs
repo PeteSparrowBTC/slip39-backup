@@ -17,7 +17,7 @@ static class Program
         var builder = PhotinoBlazorAppBuilder.CreateDefault(args);
 
         // DesktopRoot wraps the shared UI App and adds the CI smoke-test hook
-        // (SPS_SMOKE=1 -> exit 0 once Blazor has rendered in the webview).
+        // (SLIP39_SMOKE=1 -> exit 0 once Blazor has rendered in the webview).
         builder.RootComponents.Add<DesktopRoot>("#app");
 
         // Native save dialog instead of the browser Blob/<a download> mechanism.

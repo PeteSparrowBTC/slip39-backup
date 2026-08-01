@@ -1,4 +1,4 @@
-# Builds the SPS-SLIP39 AppImage — the native-window (Photino/WebKitGTK),
+# Builds the slip39-backup AppImage — the native-window (Photino/WebKitGTK),
 # offline, owner-side artifact for Tails 7+. The AppImage bundles:
 #   - the shared Blazor UI (Slip39Demo.UI) rendered by Photino.Blazor
 #   - a self-contained .NET runtime (linux-x64)
@@ -63,29 +63,29 @@ jobs:
       # .desktop, icon), enforces the Tails glibc floor on Photino.Native.so,
       # and runs appimagetool (FUSE-free mode).
       - name: Build AppImage
-        run: bash packaging/appimage/build-appimage.sh pub-desktop SPS-SLIP39-x86_64.AppImage
+        run: bash packaging/appimage/build-appimage.sh pub-desktop slip39-backup-x86_64.AppImage
 
-      # Smoke test: SPS_SMOKE=1 makes the app exit 0 once the Blazor root
+      # Smoke test: SLIP39_SMOKE=1 makes the app exit 0 once the Blazor root
       # component has rendered inside WebKitGTK — proof that .NET, Photino,
       # the webview, and the UI assembly all load together. `timeout` guards
       # against a hang; xvfb-run provides the display GTK needs.
       - name: Smoke test AppImage (render under xvfb)
         run: |
-          chmod +x SPS-SLIP39-x86_64.AppImage
-          SPS_SMOKE=1 timeout 60 xvfb-run -a ./SPS-SLIP39-x86_64.AppImage --appimage-extract-and-run
+          chmod +x slip39-backup-x86_64.AppImage
+          SLIP39_SMOKE=1 timeout 60 xvfb-run -a ./slip39-backup-x86_64.AppImage --appimage-extract-and-run
 
       # Publish a checksum next to the artifact so users can verify the copy
       # they carry to the airgapped machine.
       - name: Checksum
-        run: sha256sum SPS-SLIP39-x86_64.AppImage | tee SPS-SLIP39-x86_64.AppImage.sha256
+        run: sha256sum slip39-backup-x86_64.AppImage | tee slip39-backup-x86_64.AppImage.sha256
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SPS-SLIP39-AppImage
+          name: slip39-backup-AppImage
           path: |
-            SPS-SLIP39-x86_64.AppImage
-            SPS-SLIP39-x86_64.AppImage.sha256
+            slip39-backup-x86_64.AppImage
+            slip39-backup-x86_64.AppImage.sha256
 
       # On a version tag (v*), publish the AppImage + checksum to a GitHub
       # Release so users have a stable, downloadable, checksum-verified artifact.
@@ -94,8 +94,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            SPS-SLIP39-x86_64.AppImage
-            SPS-SLIP39-x86_64.AppImage.sha256
+            slip39-backup-x86_64.AppImage
+            slip39-backup-x86_64.AppImage.sha256
           fail_on_unmatched_files: true
           body: |
             Offline SLIP-39 + age wallet-backup tool — a single native-window
@@ -103,9 +103,9 @@ jobs:
 
             **Verify before use:**
             ```
-            sha256sum -c SPS-SLIP39-x86_64.AppImage.sha256
-            chmod +x SPS-SLIP39-x86_64.AppImage
-            ./SPS-SLIP39-x86_64.AppImage
+            sha256sum -c slip39-backup-x86_64.AppImage.sha256
+            chmod +x slip39-backup-x86_64.AppImage
+            ./slip39-backup-x86_64.AppImage
             ```
             Run it on an airgapped machine (Tails 7+) to produce real backups;
             the tool watermarks anything generated while online as INSECURE-TEST.

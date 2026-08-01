@@ -4,7 +4,7 @@ using Slip39Demo.Core.Bip32;
 
 namespace Slip39Demo.Core.Verification;
 
-// Builds the non-secret SPS-SLIP39 verification record. Stored alongside
+// Builds the non-secret slip39-backup verification record. Stored alongside
 // payload.age and consumed by the dry-run recovery flow (spec §6.5) so the
 // owner can periodically confirm their backup chain still works without
 // ever displaying the seed words on screen.
@@ -39,7 +39,7 @@ public static class VerificationRecord
         var payloadHash = Convert.ToHexString(SHA256.HashData(payloadAgeBytes)).ToLowerInvariant();
 
         var sb = new StringBuilder();
-        sb.AppendLine("SPS-SLIP39 Verification Record");
+        sb.AppendLine("slip39-backup Verification Record");
         sb.AppendLine("================================================================");
         sb.AppendLine($"Created:       {createdDate}");
         sb.AppendLine($"Tool version:  {toolVersion}");

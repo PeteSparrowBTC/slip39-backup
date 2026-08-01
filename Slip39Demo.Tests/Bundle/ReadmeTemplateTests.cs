@@ -19,7 +19,7 @@ public class ReadmeTemplateTests
         readme.Should().Contain("SLIP-39 SHARE BACKUP");
         readme.Should().Contain("share 2 of 5");
         readme.Should().Contain("Created: 2026-05-21");
-        readme.Should().Contain("Tool: Seed-Phrase-Storage-SLIP39 v2.0.0");
+        readme.Should().Contain("Tool: slip39-backup v2.0.0");
         readme.Should().Contain("RECOVERY PROCEDURE");
         readme.Should().Contain("ALTERNATIVE TOOLS");
         readme.Should().Contain("https://github.com/satoshilabs/slips/blob/master/slip-0039.md");

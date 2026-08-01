@@ -2,7 +2,7 @@
 
 ## 🔴 LIVE DEMO - DO NOT USE FOR REAL WALLETS 🔴
 
-**Demo URL:** https://bitcoin-self-custody.github.io/Seed-Phrase-Storage-SLIP39
+**Demo URL:** https://petesparrowbtc.github.io/slip39-backup
 
 ### ⚠️ CRITICAL: THIS ONLINE VERSION IS FOR DEMONSTRATION ONLY ⚠️
 
@@ -14,7 +14,7 @@
 - This demo is for learning and testing the flow only
 
 **For actual wallet backup, you MUST:**
-1. **Download** the latest release: [Releases](https://github.com/Bitcoin-Self-Custody/Seed-Phrase-Storage-SLIP39/releases)
+1. **Download** the latest release: [Releases](https://github.com/PeteSparrowBTC/slip39-backup/releases)
 2. **Extract** to USB drive
 3. **Run offline** on Tails Linux with the included local server (see [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md))
 4. **No internet connection** - completely air-gapped
@@ -109,7 +109,7 @@ The GitHub Pages version is for **DEMONSTRATION AND TESTING ONLY**.
 
 ### Option 1: Online Demo (GitHub Pages) - FOR TESTING ONLY
 
-**Demo app:** https://bitcoin-self-custody.github.io/Seed-Phrase-Storage-SLIP39
+**Demo app:** https://petesparrowbtc.github.io/slip39-backup
 
 **⚠️ WARNING: DO NOT USE WITH REAL SEED PHRASES!**
 
@@ -126,16 +126,16 @@ This is a demonstration version. While all crypto runs client-side:
 One file, one window — no browser, no server, no Tor configuration.
 
 **Download from GitHub Releases:**
-1. Go to [Releases](https://github.com/PeteSparrowBTC/Seed-Phrase-Storage-SLIP39/releases)
-2. Download `SPS-SLIP39-x86_64.AppImage` and its `.sha256`
+1. Go to [Releases](https://github.com/PeteSparrowBTC/slip39-backup/releases)
+2. Download `slip39-backup-x86_64.AppImage` and its `.sha256`
 3. Copy both to a USB drive
 
 **On Tails 7 or later** (older Tails is EOL and unsupported):
 ```bash
 # 1. Verify and run — a native window opens directly
-sha256sum -c SPS-SLIP39-x86_64.AppImage.sha256
-chmod +x SPS-SLIP39-x86_64.AppImage
-./SPS-SLIP39-x86_64.AppImage
+sha256sum -c slip39-backup-x86_64.AppImage.sha256
+chmod +x slip39-backup-x86_64.AppImage
+./slip39-backup-x86_64.AppImage
 ```
 
 See [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md) for the complete guide.
@@ -148,10 +148,10 @@ See [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md) for the complete guide.
 
 **Build the Tails AppImage** (publish on any OS; packaging needs Linux/WSL):
 ```bash
-git clone --recurse-submodules https://github.com/PeteSparrowBTC/Seed-Phrase-Storage-SLIP39.git
-cd Seed-Phrase-Storage-SLIP39
+git clone --recurse-submodules https://github.com/PeteSparrowBTC/slip39-backup.git
+cd slip39-backup
 dotnet publish Slip39Demo.Desktop -c Release -r linux-x64 --self-contained -o pub-desktop
-bash packaging/appimage/build-appimage.sh pub-desktop SPS-SLIP39-x86_64.AppImage
+bash packaging/appimage/build-appimage.sh pub-desktop slip39-backup-x86_64.AppImage
 ```
 
 ## How It Works
@@ -214,7 +214,7 @@ Each individual `share-K-of-N.zip` contains the SLIP-39 mnemonic for that share 
 ### Project Structure
 
 ```
-Seed-Phrase-Storage-SLIP39/
+slip39-backup/
 ├── Slip39Demo.Core/             # Pure C# core: SLIP-39, age, payload, bundle
 ├── Slip39Demo.UI/               # Shared Blazor UI (pages, components, assets)
 │   └── Pages/
@@ -253,7 +253,7 @@ git push origin v2.0.0
 This triggers:
 - Build and publish
 - Create GitHub Release
-- Attach `SPS-SLIP39-x86_64.AppImage` + `.sha256` for download (smoke-tested
+- Attach `slip39-backup-x86_64.AppImage` + `.sha256` for download (smoke-tested
   in CI under xvfb against the same WebKitGTK stack Tails ships)
 
 ## Security Considerations

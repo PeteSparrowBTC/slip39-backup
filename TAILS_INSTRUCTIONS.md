@@ -1,4 +1,4 @@
-# Running SPS-SLIP39 on Tails
+# Running slip39-backup on Tails
 
 The tool ships as a single AppImage that opens a **native window** — no
 browser, no local server, no Tor configuration. All cryptography runs locally;
@@ -13,7 +13,7 @@ The app has two pages you'll use:
 - **Tails 7.0 or later** (Debian 13 base). Tails 6 and older are end-of-life
   and unsupported — on them the app fails to start with a `GLIBC_2.38 not
   found` error. Check your version: Applications → Tails → About Tails.
-- A USB drive with `SPS-SLIP39-x86_64.AppImage` (and its `.sha256`, if you
+- A USB drive with `slip39-backup-x86_64.AppImage` (and its `.sha256`, if you
   downloaded it from GitHub Releases).
 
 ## Steps
@@ -30,13 +30,13 @@ The app has two pages you'll use:
 3. **Verify the download** (only needed if the file came from GitHub rather
    than your own build):
    ```bash
-   sha256sum -c SPS-SLIP39-x86_64.AppImage.sha256
+   sha256sum -c slip39-backup-x86_64.AppImage.sha256
    ```
 
 4. **Run it** (Files → right-click the folder → Open Terminal Here):
    ```bash
-   chmod +x SPS-SLIP39-x86_64.AppImage
-   ./SPS-SLIP39-x86_64.AppImage
+   chmod +x slip39-backup-x86_64.AppImage
+   ./slip39-backup-x86_64.AppImage
    ```
    The app window opens directly. (Double-clicking in the Files app does
    nothing — GNOME deliberately refuses to launch raw executables; the

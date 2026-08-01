@@ -27,7 +27,7 @@ public class VerificationRecordTests
             payloadAgeBytes: payloadBytes,
             walletMasterFingerprint: masterFp);
 
-        rec.Should().Contain("SPS-SLIP39 Verification Record");
+        rec.Should().Contain("slip39-backup Verification Record");
         rec.Should().Contain("Created:       2026-05-21");
         rec.Should().Contain("Tool version:  2.0.0");
         rec.Should().Contain("Label:         Main wallet 2026");
