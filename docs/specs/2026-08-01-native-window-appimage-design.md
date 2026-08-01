@@ -38,6 +38,12 @@ No browser, no localhost port, no Tor interaction, no proxy.
 - **Tails-only.** If Tails doesn't ship a dependency, we don't use it. We do
   NOT bundle WebKitGTK/GTK/libnotify in the AppImage. The AppImage will not run
   on distros lacking `webkit2gtk-4.1`; that is accepted and documented.
+- **Minimum Tails 7.0** (Debian 13, glibc 2.41). Photino.Native.so requires
+  glibc ≥ 2.38 — verified empirically: on Tails 6 (Debian 12, glibc 2.36) the
+  spike fails with `GLIBC_2.38 not found`. Tails 6 is EOL; supporting it would
+  be an anti-feature for a security tool. CI must assert the glibc floor of
+  the shipped .so (`objdump -T | grep GLIBC_` max ≤ 2.41) so a Photino bump
+  can't silently outgrow what current Tails ships.
 - The hosted online demo (Blazor WASM on GitHub Pages, INSECURE-TEST
   watermarked) must keep working unchanged.
 
