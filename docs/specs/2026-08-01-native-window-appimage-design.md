@@ -91,10 +91,12 @@ Desktop service implementations:
 - `NativeFileDownloader : IFileDownloader` — Photino save-file dialog, then
   `File.WriteAllBytesAsync`. Replaces the Blob/`<a download>` mechanism.
 - `LinuxConnectivityProbe : IConnectivityProbe` — reads
-  `/sys/class/net/*/operstate`, ignoring `lo`; any interface `up` → online →
-  INSECURE-TEST watermark path. Same fail-safe direction as the JS probe: any
-  error reports **online**. Stronger than `navigator.onLine`: kernel state,
-  not webview state.
+  `/sys/class/net/*/carrier`, ignoring `lo`; any live carrier (`1`) → online →
+  INSECURE-TEST watermark path. Carrier, not operstate: idle NIC drivers
+  commonly report operstate `unknown`, which false-positived a genuinely
+  airgapped Tails machine as online (found in acceptance testing). Fail-safe
+  direction as the JS probe: if `/sys` can't be enumerated, report **online**.
+  Stronger than `navigator.onLine`: kernel state, not webview state.
 
 ## Phase 2 — Packaging & CI
 
