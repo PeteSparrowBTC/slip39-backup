@@ -1,8 +1,9 @@
-# Builds the SPS-SLIP39 AppImage — the self-contained, offline, owner-side
-# artifact for Tails/Linux. The AppImage bundles:
-#   - the published Blazor WASM app (wwwroot)
-#   - a loopback-only, self-contained Kestrel host (Slip39Demo.Host, linux-x64)
-# so a user can run ONE file on an airgapped machine with nothing installed.
+# Builds the SPS-SLIP39 AppImage — the native-window (Photino/WebKitGTK),
+# offline, owner-side artifact for Tails 7+. The AppImage bundles:
+#   - the shared Blazor UI (Slip39Demo.UI) rendered by Photino.Blazor
+#   - a self-contained .NET runtime (linux-x64)
+# System libraries (webkit2gtk-4.1, gtk3, libnotify) are NOT bundled — Tails 7
+# ships them (design constraint: Tails-only target, use what the OS ships).
 #
 # Runs on every push to main touching app code, and on demand. The artifact is
 # uploaded for download/verification; releases attach it when tagged.
@@ -16,8 +17,8 @@ on:
     branches: [main]
     paths:
       - "Slip39Demo.Core/**"
-      - "Slip39Demo.Web/**"
-      - "Slip39Demo.Host/**"
+      - "Slip39Demo.UI/**"
+      - "Slip39Demo.Desktop/**"
       - "packaging/appimage/**"
       - "third_party/AgeSharp/**"
       - ".github/workflows/appimage.yml"
@@ -45,38 +46,33 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      # Publish the Blazor WASM app (static files) in Release.
-      - name: Publish web app
-        run: dotnet publish Slip39Demo.Web -c Release -o pub-web
+      # Mirror the Tails 7 library set so the smoke test exercises the same
+      # webview stack the target machine has. xvfb provides a headless display.
+      - name: Install WebKitGTK + xvfb (Tails library mirror)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-0 libnotify4 xvfb
 
-      # Publish the host as a single self-contained linux-x64 binary — the
-      # target machine (Tails) needs no .NET installed.
-      - name: Publish host (linux-x64, self-contained)
-        run: dotnet publish Slip39Demo.Host -c Release -r linux-x64 -o pub-host
-
-      # The host serves the wwwroot folder sitting next to its executable.
-      - name: Assemble host + app
-        run: cp -r pub-web/wwwroot pub-host/
+      # Publish the desktop shell as a self-contained linux-x64 app — the
+      # target machine (Tails) needs no .NET installed. This also materializes
+      # wwwroot/_content/Slip39Demo.UI (shared UI static assets).
+      - name: Publish desktop app (linux-x64, self-contained)
+        run: dotnet publish Slip39Demo.Desktop -c Release -r linux-x64 --self-contained -o pub-desktop
 
       # packaging/appimage/build-appimage.sh assembles the AppDir (AppRun,
-      # .desktop, icon) and runs appimagetool (FUSE-free mode).
+      # .desktop, icon), enforces the Tails glibc floor on Photino.Native.so,
+      # and runs appimagetool (FUSE-free mode).
       - name: Build AppImage
-        run: bash packaging/appimage/build-appimage.sh pub-host SPS-SLIP39-x86_64.AppImage
+        run: bash packaging/appimage/build-appimage.sh pub-desktop SPS-SLIP39-x86_64.AppImage
 
-      # Smoke test: the AppImage must actually serve the app before we ship it.
-      - name: Smoke test AppImage
+      # Smoke test: SPS_SMOKE=1 makes the app exit 0 once the Blazor root
+      # component has rendered inside WebKitGTK — proof that .NET, Photino,
+      # the webview, and the UI assembly all load together. `timeout` guards
+      # against a hang; xvfb-run provides the display GTK needs.
+      - name: Smoke test AppImage (render under xvfb)
         run: |
           chmod +x SPS-SLIP39-x86_64.AppImage
-          SPS_PORT=9877 ./SPS-SLIP39-x86_64.AppImage --appimage-extract-and-run &
-          for i in $(seq 1 25); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9877/ || true)
-            [ "$code" = "200" ] && break
-            sleep 1
-          done
-          test "$code" = "200"
-          # deep link (SPA fallback) and the independent-verify bundle must resolve
-          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9877/owner)" = "200"
-          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9877/js/independent-verify.min.js)" = "200"
+          SPS_SMOKE=1 timeout 60 xvfb-run -a ./SPS-SLIP39-x86_64.AppImage --appimage-extract-and-run
 
       # Publish a checksum next to the artifact so users can verify the copy
       # they carry to the airgapped machine.
@@ -102,13 +98,14 @@ jobs:
             SPS-SLIP39-x86_64.AppImage.sha256
           fail_on_unmatched_files: true
           body: |
-            Offline SLIP-39 + age wallet-backup tool, as a single self-contained AppImage.
+            Offline SLIP-39 + age wallet-backup tool — a single native-window
+            AppImage for Tails 7+ (no browser, no server, no Tor interaction).
 
             **Verify before use:**
             ```
             sha256sum -c SPS-SLIP39-x86_64.AppImage.sha256
             chmod +x SPS-SLIP39-x86_64.AppImage
-            ./SPS-SLIP39-x86_64.AppImage        # serves offline at http://127.0.0.1:9876
+            ./SPS-SLIP39-x86_64.AppImage
             ```
-            Run it on an airgapped machine (Tails) to produce real backups; the tool
-            watermarks anything generated while online as INSECURE-TEST.
+            Run it on an airgapped machine (Tails 7+) to produce real backups;
+            the tool watermarks anything generated while online as INSECURE-TEST.

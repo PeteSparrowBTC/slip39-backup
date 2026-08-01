@@ -123,45 +123,36 @@ This is a demonstration version. While all crypto runs client-side:
 
 ### Option 2: Offline on Tails Linux (Recommended)
 
+One file, one window — no browser, no server, no Tor configuration.
+
 **Download from GitHub Releases:**
-1. Go to [Releases](https://github.com/Bitcoin-Self-Custody/Seed-Phrase-Storage-SLIP39/releases)
-2. Download `slip39-backup-vX.X.X.zip`
-3. Extract to USB drive
+1. Go to [Releases](https://github.com/PeteSparrowBTC/Seed-Phrase-Storage-SLIP39/releases)
+2. Download `SPS-SLIP39-x86_64.AppImage` and its `.sha256`
+3. Copy both to a USB drive
 
-**On Tails:**
+**On Tails 7 or later** (older Tails is EOL and unsupported):
 ```bash
-# 1. Insert USB and navigate to app folder
-cd /media/amnesia/YOUR_USB/slip39-backup
-
-# 2. Start local web server (localhost only)
-./start-server.sh
-
-# 3. Open in LibreWolf (recommended) or Tor Browser
-#    Navigate to: http://127.0.0.1:9876
+# 1. Verify and run — a native window opens directly
+sha256sum -c SPS-SLIP39-x86_64.AppImage.sha256
+chmod +x SPS-SLIP39-x86_64.AppImage
+./SPS-SLIP39-x86_64.AppImage
 ```
 
-See [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md) for the complete guide, including LibreWolf setup and Tor Browser proxy configuration.
+See [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md) for the complete guide.
 
 ### Option 3: Build from Source
 
 **Requirements:**
-- .NET 8 SDK or later
-- Git
+- .NET 10 SDK
+- Git (clone with `--recurse-submodules` — the core references a patched AgeSharp fork)
 
-**Build:**
+**Build the Tails AppImage** (publish on any OS; packaging needs Linux/WSL):
 ```bash
-git clone https://github.com/Bitcoin-Self-Custody/Seed-Phrase-Storage-SLIP39.git
-cd Seed-Phrase-Storage-SLIP39/Slip39Demo.Web
-dotnet publish -c Release -o publish
+git clone --recurse-submodules https://github.com/PeteSparrowBTC/Seed-Phrase-Storage-SLIP39.git
+cd Seed-Phrase-Storage-SLIP39
+dotnet publish Slip39Demo.Desktop -c Release -r linux-x64 --self-contained -o pub-desktop
+bash packaging/appimage/build-appimage.sh pub-desktop SPS-SLIP39-x86_64.AppImage
 ```
-
-**Run locally:**
-```bash
-cd publish/wwwroot
-python3 -m http.server 9876 --bind 127.0.0.1
-```
-
-Open browser to: `http://127.0.0.1:9876`
 
 ## How It Works
 
@@ -225,18 +216,18 @@ Each individual `share-K-of-N.zip` contains the SLIP-39 mnemonic for that share 
 ```
 Seed-Phrase-Storage-SLIP39/
 ├── Slip39Demo.Core/             # Pure C# core: SLIP-39, age, payload, bundle
-├── Slip39Demo.Core.Tests/       # xUnit tests (Phase 1 + Phase 2)
-├── Slip39Demo.Web/              # Blazor WASM application
-│   ├── Pages/
-│   │   ├── Index.razor          # Owner / Recoverer chooser
-│   │   ├── Owner.razor          # /owner — backup creation
-│   │   └── Recoverer.razor      # /recoverer — wallet recovery
-│   ├── wwwroot/
-│   │   ├── start-server.sh      # Tails server startup script
-│   │   └── README_OFFLINE.md    # Offline usage guide
-│   └── Slip39Demo.Web.csproj
+├── Slip39Demo.UI/               # Shared Blazor UI (pages, components, assets)
+│   └── Pages/
+│       ├── Index.razor          # Owner / Recoverer chooser
+│       ├── Owner.razor          # /owner — backup creation
+│       └── Recoverer.razor      # /recoverer — wallet recovery
+├── Slip39Demo.Web/              # WASM shell — hosted online demo only
+├── Slip39Demo.Desktop/          # Photino shell — native Tails window (AppImage)
+├── Slip39Demo.Tests/            # xUnit tests
+├── packaging/appimage/          # AppRun, .desktop, build-appimage.sh
 ├── .github/workflows/
-│   └── build-and-release.yml    # CI/CD pipeline
+│   ├── build-and-release.yml    # demo build/deploy pipeline
+│   └── appimage.yml             # AppImage build + smoke test + release
 ├── TAILS_INSTRUCTIONS.md        # Complete Tails guide
 └── README.md                    # This file
 ```
@@ -262,7 +253,8 @@ git push origin v2.0.0
 This triggers:
 - Build and publish
 - Create GitHub Release
-- Attach `slip39-backup-v2.0.0.zip` for download
+- Attach `SPS-SLIP39-x86_64.AppImage` + `.sha256` for download (smoke-tested
+  in CI under xvfb against the same WebKitGTK stack Tails ships)
 
 ## Security Considerations
 
@@ -285,10 +277,9 @@ This triggers:
 
 When using on Tails Linux:
 - Everything runs in RAM
-- Browser doesn't save history/cache
 - Full system wipe on shutdown
-- LibreWolf or Tor Browser provides additional isolation
-- Local Python server (127.0.0.1) ensures no network exposure
+- The AppImage opens a native window (system WebKitGTK) — no browser, no
+  local server, no open ports, nothing for another process to connect to
 
 ## FAQ
 
@@ -296,7 +287,7 @@ When using on Tails Linux:
 A: No. All cryptography runs in your browser via WebAssembly. Check browser DevTools Network tab to verify.
 
 **Q: Can I use this without internet?**
-A: Yes. Run the included local server on Tails (or any OS). No internet required after the release zip is on the USB.
+A: Yes — that's the point. The AppImage is fully self-contained; run it on an airgapped Tails machine. No internet is required after the file is on the USB, and backups generated while online are watermarked INSECURE-TEST.
 
 **Q: Do I need to remember a SLIP-39 passphrase?**
 A: No. The new design has no SLIP-39 passphrase. The security boundary is "threshold-many shares **and** the `payload.age` file". Anything inside `payload.age` (including any BIP-39 passphrase you set on a cosigner) is recovered automatically once you have both.

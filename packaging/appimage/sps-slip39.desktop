@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=SPS-SLIP39 Wallet Backup
-Comment=Offline SLIP-39 + age seed phrase backup tool
+Comment=Offline SLIP-39 + age seed phrase backup tool (native window)
 Exec=AppRun
 Icon=sps-slip39
 Categories=Utility;Security;
-Terminal=true
+Terminal=false

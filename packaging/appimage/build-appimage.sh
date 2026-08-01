@@ -1,39 +1,45 @@
 #!/usr/bin/env bash
-# Builds SPS-SLIP39-x86_64.AppImage — the self-contained, offline, owner-side
-# artifact: bundled Blazor WASM app + loopback-only Kestrel host. Run on Linux
-# (CI ubuntu runner, or WSL for local builds).
+# Builds SPS-SLIP39-x86_64.AppImage — the native-window (Photino/WebKitGTK)
+# offline artifact for Tails 7+. Run on Linux (CI ubuntu runner, or WSL for
+# local builds; WSL only needs bash + curl — dotnet publish can run on Windows).
 #
 # Usage:
-#   ./build-appimage.sh <published-host-dir> <output.AppImage>
+#   ./build-appimage.sh <published-desktop-dir> <output.AppImage>
 #
-# <published-host-dir> must contain:
-#   Slip39Demo.Host          (linux-x64 self-contained single-file publish)
-#   wwwroot/                 (the published Blazor app)
-# Produce it with:
-#   dotnet publish Slip39Demo.Web  -c Release -o pub-web
-#   dotnet publish Slip39Demo.Host -c Release -r linux-x64 -o pub-host
-#   cp -r pub-web/wwwroot pub-host/
+# <published-desktop-dir> must be a linux-x64 self-contained publish:
+#   dotnet publish Slip39Demo.Desktop -c Release -r linux-x64 --self-contained -o pub-desktop
+#
+# System libraries (webkit2gtk-4.1, gtk3, libnotify) are NOT bundled — Tails 7
+# ships them; that is a deliberate design constraint (Tails-only target).
 set -euo pipefail
 
-HOST_DIR="${1:?usage: build-appimage.sh <published-host-dir> <output.AppImage>}"
-OUTPUT="${2:?usage: build-appimage.sh <published-host-dir> <output.AppImage>}"
+PUB_DIR="${1:?usage: build-appimage.sh <published-desktop-dir> <output.AppImage>}"
+OUTPUT="${2:?usage: build-appimage.sh <published-desktop-dir> <output.AppImage>}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-[ -f "$HOST_DIR/Slip39Demo.Host" ] || { echo "error: $HOST_DIR/Slip39Demo.Host missing (linux-x64 publish?)"; exit 1; }
-[ -d "$HOST_DIR/wwwroot" ]        || { echo "error: $HOST_DIR/wwwroot missing (copy the Web publish in)"; exit 1; }
+[ -f "$PUB_DIR/Slip39Demo.Desktop" ]  || { echo "error: $PUB_DIR/Slip39Demo.Desktop missing (linux-x64 publish?)"; exit 1; }
+[ -f "$PUB_DIR/Photino.Native.so" ]   || { echo "error: Photino.Native.so missing from publish"; exit 1; }
+[ -d "$PUB_DIR/wwwroot/_content/Slip39Demo.UI" ] || { echo "error: wwwroot/_content/Slip39Demo.UI missing (publish, not build?)"; exit 1; }
+
+# Guard the Tails glibc floor: Tails 7 (Debian 13) ships glibc 2.41. If a
+# Photino bump ever demands newer symbols, fail the build here instead of
+# shipping an AppImage that dies on the user's stick with GLIBC_x not found.
+MAX_GLIBC="$(objdump -T "$PUB_DIR/Photino.Native.so" | grep -o 'GLIBC_[0-9.]*' | sort -Vu | tail -1 | cut -d_ -f2)"
+if [ "$(printf '%s\n' "$MAX_GLIBC" 2.41 | sort -V | tail -1)" != "2.41" ]; then
+  echo "error: Photino.Native.so requires glibc $MAX_GLIBC > 2.41 (Tails 7)"; exit 1
+fi
 
 # ── Assemble the AppDir ────────────────────────────────────────────────
 APPDIR="$WORK/AppDir"
 mkdir -p "$APPDIR/usr/bin"
 cp "$SCRIPT_DIR/AppRun" "$APPDIR/AppRun"
 cp "$SCRIPT_DIR/sps-slip39.desktop" "$APPDIR/"
-# Icon: reuse the web app favicon (appimagetool requires an icon at the root).
-cp "$HOST_DIR/wwwroot/favicon.png" "$APPDIR/sps-slip39.png"
-cp "$HOST_DIR/Slip39Demo.Host" "$APPDIR/usr/bin/"
-cp -r "$HOST_DIR/wwwroot" "$APPDIR/usr/bin/wwwroot"
-chmod +x "$APPDIR/AppRun" "$APPDIR/usr/bin/Slip39Demo.Host"
+# Icon: reuse the app favicon (appimagetool requires an icon at the root).
+cp "$PUB_DIR/wwwroot/_content/Slip39Demo.UI/favicon.png" "$APPDIR/sps-slip39.png"
+cp -r "$PUB_DIR/." "$APPDIR/usr/bin/"
+chmod +x "$APPDIR/AppRun" "$APPDIR/usr/bin/Slip39Demo.Desktop"
 
 # ── Fetch appimagetool (pinned to the 'continuous' official build) ─────
 TOOL="$WORK/appimagetool"
