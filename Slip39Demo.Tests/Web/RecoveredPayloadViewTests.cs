@@ -1,7 +1,7 @@
 using Bunit;
 using FluentAssertions;
 using Slip39Demo.Core.Payload;
-using Slip39Demo.Web.Shared;
+using Slip39Demo.UI.Shared;
 using Xunit;
 
 namespace Slip39Demo.Tests.Web;

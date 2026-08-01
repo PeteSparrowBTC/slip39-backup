@@ -1,6 +1,6 @@
 using CSharpFunctionalExtensions;
 
-namespace Slip39Demo.Web.Services;
+namespace Slip39Demo.UI.Services;
 
 // Post-generation gate: a freshly generated backup must be round-tripped by
 // implementations INDEPENDENT of the C# generation stack (slip39-js + typage in

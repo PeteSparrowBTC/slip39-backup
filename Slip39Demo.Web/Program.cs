@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
-using Slip39Demo.Web;
+using Slip39Demo.UI.Services;
 using Slip39Demo.Web.Services;
 
+// WASM shell for the hosted online demo. The UI lives in Slip39Demo.UI; this
+// project only wires the browser-specific service implementations.
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
-builder.RootComponents.Add<App>("#app");
+builder.RootComponents.Add<Slip39Demo.UI.App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });

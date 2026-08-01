@@ -1,0 +1,20 @@
+<!-- Shared Razor UI for both shells: the Blazor WASM online demo (Slip39Demo.Web)
+     and the native Tails window (Slip39Demo.Desktop). Host-specific services
+     (file download, connectivity probe) stay behind the interfaces in Services/;
+     each shell registers its own implementation. -->
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Slip39Demo.Core\Slip39Demo.Core.csproj" />
+  </ItemGroup>
+</Project>

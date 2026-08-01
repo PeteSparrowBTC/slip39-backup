@@ -1,7 +1,7 @@
 using Bunit;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
-using Slip39Demo.Web.Shared;
+using Slip39Demo.UI.Shared;
 using Xunit;
 
 namespace Slip39Demo.Tests.Web;

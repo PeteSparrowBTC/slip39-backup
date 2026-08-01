@@ -1,0 +1,13 @@
+@* Desktop root: renders the shared UI and, under SPS_SMOKE=1 (CI only),
+   exits 0 once the first render reaches the webview — proof that .NET,
+   Photino, WebKitGTK and the Blazor bridge all work together. *@
+<Slip39Demo.UI.App />
+
+@code {
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender || Environment.GetEnvironmentVariable("SPS_SMOKE") != "1") return;
+        Console.WriteLine("SPS_SMOKE: Blazor root rendered in WebKitGTK — OK");
+        Environment.Exit(0);
+    }
+}

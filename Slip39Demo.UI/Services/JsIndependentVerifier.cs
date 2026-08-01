@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 using CSharpFunctionalExtensions;
 using Microsoft.JSInterop;
 
-namespace Slip39Demo.Web.Services;
+namespace Slip39Demo.UI.Services;
 
 // Calls window.SPSVerify.verifyBackup (wwwroot/js/independent-verify.min.js — a
 // locally bundled slip39-js + typage, see tools/independent-verify). The JS side

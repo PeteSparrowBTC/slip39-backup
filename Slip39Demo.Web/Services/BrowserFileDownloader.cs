@@ -1,4 +1,5 @@
 using Microsoft.JSInterop;
+using Slip39Demo.UI.Services;
 
 namespace Slip39Demo.Web.Services;
 

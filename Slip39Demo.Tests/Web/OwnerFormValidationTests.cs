@@ -3,8 +3,8 @@ using Bunit;
 using CSharpFunctionalExtensions;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
-using Slip39Demo.Web.Pages;
-using Slip39Demo.Web.Services;
+using Slip39Demo.UI.Pages;
+using Slip39Demo.UI.Services;
 using Xunit;
 
 namespace Slip39Demo.Tests.Web;

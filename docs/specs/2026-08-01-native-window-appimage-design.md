@@ -71,6 +71,12 @@ Run manually on the Tails stick. All three pass → proceed to Phase 1. If print
 fails → design a native PDF-generation fallback before migrating. The spike is
 deleted once the verdict is recorded here.
 
+**Verdict (2026-08-01, Tails 7.10 on the physical stick): ALL THREE PASS.**
+Print dialog with print-to-PDF, WebCrypto digest match, native save dialog all
+confirmed working. (First attempt on a Tails 6 stick failed with
+`GLIBC_2.38 not found` — that produced the Tails 7.0 floor constraint above.)
+Phase 1 is a GO.
+
 ## Phase 1 — Restructure
 
 | Project | Fate | Contents |

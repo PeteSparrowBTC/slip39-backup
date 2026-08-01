@@ -1,4 +1,4 @@
-namespace Slip39Demo.Web.Shared;
+namespace Slip39Demo.UI.Shared;
 
 // Mutable view-models used by Blazor @bind. NOT domain types — these never
 // leave the UI layer; the Owner page projects them into immutable

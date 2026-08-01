@@ -1,4 +1,4 @@
-namespace Slip39Demo.Web.Services;
+namespace Slip39Demo.UI.Services;
 
 // Answers "is the internet reachable from this machine right now?" for the
 // airgap warning + INSECURE-TEST watermark gate. True = online (danger).
