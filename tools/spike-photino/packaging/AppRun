@@ -1,0 +1,5 @@
+#!/bin/sh
+# Spike AppImage entrypoint: exec the native-window binary. No server, no
+# browser, no xdg-open — this two-liner is the whole point of the migration.
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/bin/SpikePhotino"

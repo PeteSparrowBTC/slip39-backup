@@ -1,0 +1,76 @@
+@using System.Security.Cryptography
+@using System.Text
+@inject IJSRuntime Js
+@inject Photino.Blazor.PhotinoBlazorApp PhotinoApp
+
+@* Single-page spike: three go/no-go checks for the native-window migration.
+   1. window.print()  — the recovery-kit print path (must offer print-to-PDF on Tails)
+   2. WebCrypto       — crypto.subtle, what the typage/age JS verifier needs
+   3. Save dialog     — native GTK save dialog + File.WriteAllTextAsync *@
+
+<div class="spike">
+    <h1>SPS Photino Spike</h1>
+    <p class="ua">@userAgent</p>
+
+    <section>
+        <h2>1 — Print (recovery kit path)</h2>
+        <button @onclick="TestPrint">Open print dialog</button>
+        <p>Expected: WebKitGTK print dialog with a Print-to-PDF option. Print this page to PDF on the stick.</p>
+    </section>
+
+    <section>
+        <h2>2 — WebCrypto (typage/age path)</h2>
+        <button @onclick="TestCrypto">Run crypto.subtle.digest</button>
+        <p class="@cryptoClass">@cryptoResult</p>
+    </section>
+
+    <section>
+        <h2>3 — Native save dialog</h2>
+        <button @onclick="TestSave">Save test file</button>
+        <p>@saveResult</p>
+    </section>
+</div>
+
+@code {
+    string userAgent = "";
+    string cryptoResult = "not run";
+    string cryptoClass = "";
+    string saveResult = "not run";
+
+    // C#-side expected value: JS must produce the identical SHA-256 for PASS.
+    static string ExpectedDigest => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes("tails-spike")));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        userAgent = await Js.InvokeAsync<string>("spikeUserAgent");
+        StateHasChanged();
+    }
+
+    Task TestPrint() => Js.InvokeVoidAsync("window.print").AsTask();
+
+    async Task TestCrypto()
+    {
+        try
+        {
+            var actual = await Js.InvokeAsync<string>("spikeCryptoDigest");
+            (cryptoResult, cryptoClass) = actual == ExpectedDigest
+                ? ($"PASS — {actual}", "pass")
+                : ($"FAIL — js: {actual}, expected: {ExpectedDigest}", "fail");
+        }
+        catch (Exception ex)
+        {
+            (cryptoResult, cryptoClass) = ($"FAIL — {ex.Message}", "fail");
+        }
+    }
+
+    async Task TestSave()
+    {
+        var path = await PhotinoApp.MainWindow.ShowSaveFileAsync(
+            "Save spike test file",
+            filters: [("Text", new[] { "*.txt" })]);
+        if (path is null) { saveResult = "cancelled"; return; }
+        await File.WriteAllTextAsync(path, $"spike ok — written by SpikePhotino{Environment.NewLine}");
+        saveResult = $"PASS — wrote {path}";
+    }
+}

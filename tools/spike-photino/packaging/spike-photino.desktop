@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SPS Photino Spike
+Comment=Tails WebKitGTK go/no-go checks for the native-window migration
+Exec=SpikePhotino
+Icon=spike-photino
+Categories=Utility;
+Terminal=false
