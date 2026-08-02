@@ -32,6 +32,8 @@ The output is a single `output.zip` that you save to a USB drive. Recovery only 
 
 **Built with:** [Xecrets.Slip39](https://github.com/xecrets/xecrets-slip39) (SLIP-39 secret-sharing) and an in-tree age-passphrase implementation.
 
+**New to all of this?** Start with the [complete backup framework](https://github.com/PeteSparrowBTC/bitcoin-backup-framework): a from-zero strategy for securing your seed, passphrase, password manager, and heir access, with this tool as the worked example.
+
 ## What is This?
 
 This tool implements two roles that map directly to two routes in the app:
