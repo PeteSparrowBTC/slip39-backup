@@ -1,0 +1,10 @@
+# Shell scripts must keep LF line endings in the working tree, on every platform.
+#
+# Why this matters here: .githooks/pre-push is the client-side guard against pushing
+# to main. If git checks it out with CRLF (the default on Windows when core.autocrlf
+# is true), the shebang line becomes "#!/bin/sh\r" and a POSIX shell reports
+# "bad interpreter: No such file or directory". Git then treats the hook as failed to
+# run, and on some paths simply skips it: a guard that looks installed but never
+# blocks anything. Pinning eol=lf keeps the hook executable on Linux and macOS clones.
+.githooks/** text eol=lf
+*.sh text eol=lf
