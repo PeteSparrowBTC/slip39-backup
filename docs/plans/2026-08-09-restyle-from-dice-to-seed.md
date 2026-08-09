@@ -64,7 +64,11 @@ It is PR A, and it is independent of the Tauri work in PR B.
 **Interfaces:**
 - Consumes: nothing.
 - Produces: the class vocabulary every later task uses. Exact names:
-  `app`, `panel`, `panel-header`, `panel-body`, `banner`, `banner-ok`, `banner-warn`, `banner-loud`, `field`, `field-label`, `hint`, `hint-loud`, `input`, `input-mono`, `btn`, `btn-primary`, `btn-ghost`, `btn-danger`, `btn-sm`, `split`, `cols`, `mono-block`, `words`, `transcript`, `t-command`, `t-output`, `t-warning`, `t-note`, `check`, `spinner`, `section-label`, `subtitle`, `page-head`.
+  `app`, `panel`, `panel-header`, `panel-body`, `banner`, `banner-ok`, `banner-warn`, `banner-loud`, `field`, `field-label`, `hint`, `hint-loud`, `input`, `input-mono`, `btn`, `btn-primary`, `btn-danger`, `btn-sm`, `btn-block`, `split`, `split-sticky`, `cols`, `row-between`, `mono-block`, `words`, `transcript`, `t-command`, `t-output`, `t-warning`, `t-note`, `check`, `spinner`, `section-label`, `subtitle`, `page-head`.
+
+  This list is the contract, and Task 1 tests it name by name. Do not add a class to
+  it speculatively: `btn-ghost` was listed here in the first draft, no task ever
+  consumed it, and defining it would have shipped dead CSS to satisfy a list.
 
 - [ ] **Step 1: Write the failing test**
 
