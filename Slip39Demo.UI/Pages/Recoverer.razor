@@ -3,6 +3,7 @@
 @using CSharpFunctionalExtensions
 @using Slip39Demo.Core.Age
 @using Slip39Demo.Core.Payload
+@using Slip39Demo.Core.Pgp
 @using Slip39Demo.Core.Slip39
 @using Slip39Demo.UI.Shared
 
@@ -91,7 +92,24 @@
             var cipher = ResolveCiphertext();
             if (cipher.IsFailure) { errorMessage = cipher.Error; return; }
 
-            var plain = AgePassphrase.Decrypt(cipher.Value, keyResult.Value);
+            // The file handed to us may be payload.age.gpg: the same age file with
+            // a second lock around it. Take that off first, in-process, so
+            // recovery never depends on GnuPG being installed and driveable on
+            // whatever machine the heir happens to have. Detected by content
+            // rather than by file name, because the file may have been renamed,
+            // re-downloaded from a password manager, or arrive with no extension.
+            var unwrapped = LooksLikeOpenPgp(cipher.Value)
+                ? PgpEnvelope.Decrypt(cipher.Value, keyResult.Value)
+                : Result.Success(cipher.Value);
+            if (unwrapped.IsFailure)
+            {
+                errorMessage =
+                    "This looks like a payload.age.gpg (an age file with a second lock around it), "
+                    + $"but that lock would not open with these shares: {unwrapped.Error}";
+                return;
+            }
+
+            var plain = AgePassphrase.Decrypt(unwrapped.Value, keyResult.Value);
             if (plain.IsFailure) { errorMessage = plain.Error; return; }
 
             var parsed = PayloadParser.Parse(Encoding.UTF8.GetString(plain.Value));
@@ -104,6 +122,13 @@
             isRecovering = false;
         }
     }
+
+    // An OpenPGP file begins with a packet tag byte, which always has the high
+    // bit set. An age file begins with "age-encryption.org/v1" and its armor with
+    // "-----BEGIN", both plain ASCII with the high bit clear, so one byte
+    // separates the two cleanly with no guessing from file extensions.
+    static bool LooksLikeOpenPgp(byte[] data) =>
+        data.Length > 0 && (data[0] & 0x80) != 0;
 
     Result<byte[]> ResolveCiphertext()
     {

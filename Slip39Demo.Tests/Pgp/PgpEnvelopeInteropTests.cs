@@ -1,7 +1,11 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text;
 using FluentAssertions;
+using Slip39Demo.Core.Age;
+using Slip39Demo.Core.Payload;
 using Slip39Demo.Core.Pgp;
+using Slip39Demo.Core.Slip39;
 using Xunit;
 
 namespace Slip39Demo.Tests.Pgp;
@@ -118,6 +122,111 @@ public class PgpEnvelopeInteropTests
             File.ReadAllBytes(output).Should().Equal(AgeFile);
         }
         finally { Directory.Delete(dir, true); }
+    }
+
+    // GnuPG compresses before encrypting by DEFAULT, and lets the user pick the
+    // algorithm, so a real payload.age.gpg is very likely to have a compressed
+    // packet inside it that we never produce ourselves. If the decrypt path could
+    // not unwrap those, recovery would fail on precisely the files most heirs
+    // will be handed. Every algorithm gpg can emit is covered here rather than
+    // trusting that the default is the only one that turns up.
+    [SkippableTheory]
+    [InlineData("none")]
+    [InlineData("zip")]
+    [InlineData("zlib")]
+    [InlineData("bzip2")]
+    public void GnuPgCompressedEnvelopes_AreUnwrapped(string compressAlgorithm)
+    {
+        Skip.IfNot(GpgAvailable, "gpg is not on PATH");
+
+        var dir = NewTempDir();
+        try
+        {
+            var input = Path.Combine(dir, "payload.age");
+            var output = Path.Combine(dir, "payload.age.gpg");
+            File.WriteAllBytes(input, AgeFile);
+
+            RunGpg(["--batch", "--yes", "--symmetric", "--cipher-algo", "AES256",
+                    "--compress-algo", compressAlgorithm,
+                    "--passphrase-fd", "0", "--pinentry-mode", "loopback",
+                    "--output", output, input])
+                .Should().Be(0);
+
+            var unwrapped = PgpEnvelope.Decrypt(File.ReadAllBytes(output), Key);
+
+            unwrapped.IsSuccess.Should().BeTrue(unwrapped.IsFailure ? unwrapped.Error : "");
+            unwrapped.Value.Should().Equal(AgeFile,
+                $"a gpg envelope compressed with {compressAlgorithm} must still yield the exact age file");
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    // One byte separates the two layers, and Recoverer relies on it to decide
+    // whether to unwrap before decrypting. OpenPGP packet tags always have the
+    // high bit set; age and its armor are plain ASCII.
+    [Fact]
+    public void OpenPgpAndAgeFiles_AreDistinguishableByTheirFirstByte()
+    {
+        var envelope = PgpEnvelope.Encrypt(AgeFile, Key).Value;
+
+        (envelope[0] & 0x80).Should().NotBe(0, "an OpenPGP packet tag has the high bit set");
+        (AgeFile[0] & 0x80).Should().Be(0, "an age file starts with ASCII 'a'");
+        ((byte)'-' & 0x80).Should().Be(0, "age armor starts with ASCII '-'");
+    }
+
+    // The whole stack, walked the way Recoverer walks it, starting from nothing
+    // but share mnemonics and a doubly-wrapped file. This is the claim that
+    // actually matters: shares in, wallet out, with the OpenPGP layer unwrapped
+    // and the age layer decrypted in-process, nothing else installed.
+    [Fact]
+    public void SharesPlusDoubleWrappedFile_RecoverTheWallet()
+    {
+        var payloadText =
+            """
+            schema_version: 1.1
+            created: 2026-01-01
+            label: "Main wallet"
+
+            seed_words: abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about
+
+            cosigners:
+              - id: main
+                wallet_type: single_sig
+                derivation_path: m/84'/0'/0'
+
+            threshold: 3-of-5
+            slip39_extendable: true
+
+            """;
+
+        // Owner side: split K, encrypt with age, then wrap the age file in OpenPGP.
+        var k = RandomNumberGenerator.GetBytes(32);
+        var mnemonics = Slip39Wrapping.SplitKey(k, new GroupConfig(
+            GroupThreshold: 1,
+            Groups: [new ShareGroup("group", Threshold: 3, Count: 5)],
+            Extendable: true));
+        mnemonics.IsSuccess.Should().BeTrue(mnemonics.IsFailure ? mnemonics.Error : "");
+
+        var ageFile = AgePassphrase.Encrypt(Encoding.UTF8.GetBytes(payloadText), k);
+        ageFile.IsSuccess.Should().BeTrue();
+        var doubleWrapped = PgpEnvelope.Encrypt(ageFile.Value, k);
+        doubleWrapped.IsSuccess.Should().BeTrue();
+
+        // Recovery side: three of the five shares plus the wrapped file. The key is
+        // reconstructed here, never carried across from the owner side.
+        var recoveredKey = Slip39Wrapping.CombineMnemonics(mnemonics.Value.Take(3));
+        recoveredKey.IsSuccess.Should().BeTrue(recoveredKey.IsFailure ? recoveredKey.Error : "");
+
+        var unwrapped = PgpEnvelope.Decrypt(doubleWrapped.Value, recoveredKey.Value);
+        unwrapped.IsSuccess.Should().BeTrue(unwrapped.IsFailure ? unwrapped.Error : "");
+
+        var plain = AgePassphrase.Decrypt(unwrapped.Value, recoveredKey.Value);
+        plain.IsSuccess.Should().BeTrue(plain.IsFailure ? plain.Error : "");
+
+        var parsed = PayloadParser.Parse(Encoding.UTF8.GetString(plain.Value));
+        parsed.IsSuccess.Should().BeTrue(parsed.IsFailure ? parsed.Error : "");
+        parsed.Value.TopLevelSeedWords.Should().StartWith("abandon abandon");
+        parsed.Value.Label.Should().Be("Main wallet");
     }
 
     static bool GpgAvailable => RunGpg(["--version"], captureOnly: true) == 0;
