@@ -15,6 +15,9 @@ public static class PayloadReadme
         "What is in this folder:\n" +
         "  - payload.age          binary age-encrypted blob (the secret)\n" +
         "  - payload.age.txt      same blob, ASCII-armored for paste into PMs\n" +
+        "  - payload.age.gpg      same blob with a second lock (OpenPGP AES-256)\n" +
+        "                         around it, in case age is ever broken. Any ONE\n" +
+        "                         of these three recovers the wallet.\n" +
         "  - VERIFY-THIS-BACKUP.txt   how to prove this blob decrypts using\n" +
         "                         other people's tools, not this one\n" +
         "\n" +

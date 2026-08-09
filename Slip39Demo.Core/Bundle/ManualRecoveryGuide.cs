@@ -34,9 +34,11 @@ WHAT YOU NEED
     share is one line of words in a file named share.slip39.
     (A SLIP-39 tool will tell you how many you need — it is
     encoded in the shares themselves.)
- 2. The encrypted payload file: payload.age (binary) or
-    payload.age.txt (same content, ASCII text form). It was kept
-    by the owner — password manager, safe, or with their executor.
+ 2. The encrypted payload file. It may be called payload.age
+    (binary), payload.age.txt (the same thing as text), or
+    payload.age.gpg (the same thing with one extra lock, see
+    Step 2). Any one of them is enough. It was kept by the
+    owner — password manager, safe, or with their executor.
  3. An OFFLINE computer. Ideally Tails (tails.net) on a USB
     stick: boot it, and do NOT connect to the internet.
  4. A second, ordinary USB stick carrying the tools, prepared
@@ -128,6 +130,21 @@ them — both tools above are verified to work with these shares.
 
 STEP 2 — DECRYPT THE PAYLOAD WITH THAT KEY
 ----------------------------------------------------------------
+FIRST, if what you have is called payload.age.gpg rather than
+payload.age: that is the same file with one extra lock around
+it. Take that lock off first. GnuPG is already installed on
+Tails, so there is nothing to download:
+
+    gpg -d payload.age.gpg > payload.age
+
+It will ask for a passphrase. Type the SAME 64-character hex
+string from Step 1. You now have payload.age; carry on below.
+
+(A backup normally contains both forms. If you already have a
+plain payload.age, skip this. The extra lock is there so that a
+future weakness in one of the two encryption formats still
+leaves the other one standing.)
+
 In the terminal, in the folder holding payload.age and the
 unpacked age program:
 

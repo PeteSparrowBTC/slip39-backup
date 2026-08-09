@@ -21,7 +21,8 @@ public class OutputBundleBuilderTests
         var armored = AgeArmor.Encode(ciphertext);
         var verificationRecord = "fake verification record\nline 2\n";
 
-        var bundle = OutputBundleBuilder.Build(shareZips, ciphertext, armored, verificationRecord);
+        var bundle = OutputBundleBuilder.Build(shareZips, ciphertext, armored, verificationRecord,
+            payloadAgeGpg: "pretend-openpgp-envelope"u8.ToArray());
 
         using var ms = new MemoryStream(bundle);
         using var archive = new ZipArchive(ms, ZipArchiveMode.Read);
@@ -32,6 +33,7 @@ public class OutputBundleBuilderTests
             "payload/IMPORTANT-READ-FIRST.txt",
             "payload/VERIFY-THIS-BACKUP.txt",
             "payload/payload.age",
+            "payload/payload.age.gpg",
             "payload/payload.age.txt",
             "shares/share-1-of-3.zip",
             "shares/share-2-of-3.zip",

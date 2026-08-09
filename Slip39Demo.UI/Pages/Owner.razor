@@ -6,6 +6,7 @@
 @using Slip39Demo.Core.Bip32
 @using Slip39Demo.Core.Bundle
 @using Slip39Demo.Core.Payload
+@using Slip39Demo.Core.Pgp
 @using Slip39Demo.Core.Slip39
 @using Slip39Demo.Core.Verification
 @using Slip39Demo.UI.Services
@@ -366,6 +367,14 @@
             }
         }
 
+        // Second, independent envelope around the age file. Nesting composes:
+        // an attacker must break BOTH formats, so the wallet survives a break in
+        // either. It also lifts the post-quantum margin from 2^64 to 2^128,
+        // because age's 128-bit file key is what Grover would halve.
+        var wrapped = PgpEnvelope.Encrypt(ciphertext, k);
+        if (wrapped.IsFailure)
+            return Result.Failure<BuildOutcome>(wrapped.Error);
+
         var armored = AgeArmor.Encode(ciphertext);
         var fingerprint = Bip32MasterFingerprint.Compute(firstSeed, firstPp);
         var record = VerificationRecord.Build(
@@ -376,7 +385,7 @@
             payloadAgeBytes: ciphertext,
             walletMasterFingerprint: fingerprint);
 
-        var bundle = OutputBundleBuilder.Build(shareZips, ciphertext, armored, record);
+        var bundle = OutputBundleBuilder.Build(shareZips, ciphertext, armored, record, wrapped.Value);
 
         // Subsets for the independent verifier: every share covered, each subset
         // exactly satisfying the threshold structure (slip39-js rejects extras).

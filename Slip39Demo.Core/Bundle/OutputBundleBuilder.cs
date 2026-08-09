@@ -7,6 +7,7 @@ namespace Slip39Demo.Core.Bundle;
 //   shares/<name>.zip          one entry per share, content from ShareZipWriter
 //   payload/payload.age        ciphertext bytes
 //   payload/payload.age.txt    ASCII-armored ciphertext
+//   payload/payload.age.gpg    the same blob inside an OpenPGP AES-256 envelope
 //   payload/IMPORTANT-READ-FIRST.txt   PayloadReadme.Text
 //   payload/VERIFY-THIS-BACKUP.txt     VerifyGuide.Text (owner, do it now)
 //   verification-record.txt    VerificationRecord.Build(...) text
@@ -22,7 +23,8 @@ public static class OutputBundleBuilder
         IReadOnlyList<(string FileName, byte[] ZipBytes)> shareZips,
         byte[] payloadAgeBinary,
         string payloadAgeArmoredText,
-        string verificationRecordText)
+        string verificationRecordText,
+        byte[]? payloadAgeGpg = null)
     {
         using var ms = new MemoryStream();
         using (var archive = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
@@ -32,6 +34,11 @@ public static class OutputBundleBuilder
 
             AddEntry(archive, "payload/payload.age", payloadAgeBinary);
             AddEntry(archive, "payload/payload.age.txt", Encoding.UTF8.GetBytes(payloadAgeArmoredText));
+            // The double-wrapped copy. Shipped ALONGSIDE payload.age rather than
+            // replacing it: an heir who manages only the age step still recovers
+            // the wallet, and the extra layer is protection, not a gate.
+            if (payloadAgeGpg is not null)
+                AddEntry(archive, "payload/payload.age.gpg", payloadAgeGpg);
             AddEntry(archive, "payload/IMPORTANT-READ-FIRST.txt", Encoding.UTF8.GetBytes(PayloadReadme.Text));
             // Sits next to the blob it tells the owner to verify, so whoever opens
             // the folder holding the ciphertext finds the procedure for proving it
