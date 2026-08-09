@@ -52,6 +52,52 @@ Traditional BIP-39 seed phrases have a problem: if someone finds your 12/24 word
 - **One file to distribute, one file to keep online** — the `output.zip` is laid out so share zips go to physical/offline storage and `payload.age` goes to a password-manager entry with Emergency Access for your executor.
 - **Verifiable on recovery without exposing the seed** — a `verification-record.txt` lets you do periodic dry-run recovery checks against a stored fingerprint.
 
+## How this compares to other tools
+
+Other projects solve a similar problem, and it is worth knowing what they do
+before choosing any of them, including this one. The table below lists only
+things that can be checked from each project's own repository, as of August 2026.
+Follow the links and confirm rather than taking this page's word for it.
+
+| | This tool | [Superbacked](https://github.com/superbacked/superbacked) | [Hyperbacked](https://github.com/Twometer/hyperbacked) |
+| --- | --- | --- | --- |
+| Licence | MIT | Custom end-user agreement | MIT |
+| Built with | .NET, runs as an AppImage on Tails | Electron, desktop | Rust |
+| Splitting scheme | SLIP-39 | Shamir's Secret Sharing | Shamir's Secret Sharing |
+| Shares look like | 33 words per share | Encrypted QR code | Encrypted QR code in a PDF |
+
+On licences, the difference is worth reading rather than summarising. Superbacked
+publishes its source code, which is more than most paid software does, and its
+licence states that building or using it is "allowed for personal use only" and
+that "unauthorized distribution or usage of this software (including its source
+code) is strictly prohibited". You can read it and build it; you cannot fork it
+or ship it. This tool and Hyperbacked are both MIT, which permits all of that.
+
+**What differs here.** Two things must come together to recover a wallet made
+with this tool: threshold-many shares, and the separate encrypted `payload.age`
+file. Shares alone reveal nothing, and the encrypted file alone reveals nothing.
+That is a deliberate trade. It resists a group of share-holders combining against
+you, and it costs you a second item that has to survive.
+
+The shares being words rather than a QR code is also a trade. Words can be copied
+by hand, checked by eye, and stamped into metal, and they carry a checksum that
+catches transcription mistakes. A QR code is more compact and faster to read
+back, and it needs a working scanner at recovery time, possibly decades from now.
+
+**Where other tools are ahead.** Superbacked offers plausible deniability: a
+second passphrase that opens a decoy secret, so a person under duress can hand
+over something that works. This tool has nothing equivalent, and that is a real
+gap if coercion is a concern you have. It is tracked in
+[issue #7](https://github.com/PeteSparrowBTC/slip39-backup/issues/7) rather than
+quietly omitted.
+
+None of these tools, this one included, publishes reproducible builds, which
+means you cannot independently confirm that a released binary was built from the
+source you can read. That limitation applies here too.
+
+Other projects exist in this space, including seQRets. They are not covered here
+because they have not been examined closely enough to describe fairly.
+
 ## How the New Design Works
 
 ### Two-layer encryption
