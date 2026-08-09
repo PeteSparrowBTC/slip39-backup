@@ -127,11 +127,58 @@
             </div>
         </div>
     </div>
+
+    @if (transcript is not null)
+    {
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>How your payload was encrypted</span>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => showTranscript = !showTranscript">
+                            @(showTranscript ? "Hide details" : "Show details")
+                        </button>
+                    </div>
+                    <div class="card-body p-3">
+                        <p class="small mb-2">@transcript.Summary</p>
+                        @if (showTranscript)
+                        {
+                            @* Rendered as a terminal-style log: the reader sees the
+                               command that ran and what it printed back, not a claim
+                               that something happened. *@
+                            <div class="bg-dark text-light p-3 rounded small font-monospace"
+                                 style="white-space: pre-wrap; word-break: break-word;">
+                                @foreach (var line in transcript.Lines)
+                                {
+                                    @switch (line.Kind)
+                                    {
+                                        case TranscriptLineKind.Command:
+                                            <div class="text-info">$ @line.Text</div>
+                                            break;
+                                        case TranscriptLineKind.Output:
+                                            <div class="text-success">@line.Text</div>
+                                            break;
+                                        case TranscriptLineKind.Warning:
+                                            <div class="text-warning">! @line.Text</div>
+                                            break;
+                                        default:
+                                            <div class="text-secondary">@line.Text</div>
+                                            break;
+                                    }
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
     [Inject] IFileDownloader Downloader { get; set; } = null!;
     [Inject] IIndependentVerifier Verifier { get; set; } = null!;
+    [Inject] IPayloadEncryptor Encryptor { get; set; } = null!;
 
     readonly OwnerFormModel model = new();
     bool isGenerating;
@@ -144,6 +191,11 @@
     // unknown probe state counts as online.
     bool? machineOnline;
     bool attested;
+
+    // Held after a successful generate so the user can read what actually
+    // happened. Contains no key material and no plaintext by construction.
+    EncryptionTranscript? transcript;
+    bool showTranscript;
     bool IsTestOnly => machineOnline != false || !attested;
 
     async Task GenerateAsync()
@@ -155,7 +207,7 @@
         {
             await Task.Yield(); // let the spinner render before CPU-bound work
 
-            var build = TryBuild();
+            var build = await TryBuild();
             if (build.IsFailure)
             {
                 errorMessage = build.Error;
@@ -200,6 +252,7 @@
             // of a pile of identical "output.zip" files. Shape:
             //   slip39-wallet-backup-<label-slug>-<yyyy-MM-dd>.zip   (label present)
             //   slip39-wallet-backup-<yyyy-MM-dd>.zip                (no label)
+            transcript = outcome.Transcript;
             var fileName = BuildBundleFileName(model.Label, IsTestOnly);
             await Downloader.DownloadAsync(fileName, outcome.Bundle, "application/zip");
             successMessage =
@@ -223,12 +276,13 @@
         Bip32Fingerprint Fingerprint,
         IReadOnlyList<IReadOnlyList<string>> VerifySubsets,
         byte[] PayloadAge,
-        string PayloadText);
+        string PayloadText,
+        EncryptionTranscript Transcript);
 
     // Pure projection from the view-model to the bundle bytes. Returns a Result so
     // every legitimate failure surface (no seed, age failure, SLIP-39 failure) is
     // captured cleanly without exceptions reaching the UI layer.
-    Result<BuildOutcome> TryBuild()
+    async Task<Result<BuildOutcome>> TryBuild()
     {
         var firstSeed = !string.IsNullOrWhiteSpace(model.TopLevelSeedWords)
             ? model.TopLevelSeedWords
@@ -273,10 +327,14 @@
 
         var k = RandomNumberGenerator.GetBytes(32);
 
-        var cipherResult = AgePassphrase.Encrypt(payloadBytes, k);
+        // Encryption goes through the injected encryptor, not straight to AgeSharp:
+        // the Tails AppImage runs the official age binary as a separate program,
+        // and returns a transcript of exactly what it did so the user can read it
+        // rather than take our word. The browser demo stays in-process.
+        var cipherResult = await Encryptor.EncryptAsync(payloadBytes, k);
         if (cipherResult.IsFailure)
             return Result.Failure<BuildOutcome>(cipherResult.Error);
-        var ciphertext = cipherResult.Value;
+        var ciphertext = cipherResult.Value.Ciphertext;
 
         var cfg = new GroupConfig(
             GroupThreshold: model.GroupThreshold,
@@ -324,7 +382,8 @@
         // exactly satisfying the threshold structure (slip39-js rejects extras).
         var verifySubsets = VerificationSubsets.BuildCoveringSubsets(cfg, mnemonics);
 
-        return new BuildOutcome(bundle, mnemonics.Count, fingerprint, verifySubsets, ciphertext, payloadText);
+        return new BuildOutcome(bundle, mnemonics.Count, fingerprint, verifySubsets, ciphertext, payloadText,
+            cipherResult.Value.Transcript);
     }
 
     // Builds the download filename: "slip39-wallet-backup" (what it is) + an

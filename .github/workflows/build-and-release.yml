@@ -55,15 +55,26 @@ jobs:
       - name: Build
         run: dotnet build Slip39Demo.slnx -c Release --no-restore
 
-      # Step 4b: Run the whole test suite (Slip39Demo.Tests) — Core unit tests,
-      # payload schema, BIP-32 fingerprint, integration round-trip, bUnit UI, and
-      # the C2SP/CCTV age wire-format conformance vectors (see
-      # Slip39Demo.Tests/Age/Cctv/CctvScryptArmorVectorTests.cs). Any failure
-      # fails the build. This replaces the old tolerate-61-failures gate, which
-      # was calibrated against a Windows checkout where git's core.autocrlf had
-      # corrupted the byte-exact vectors (reported and fixed upstream as
-      # pscheid92/AgeSharp#3). The vectors now carry `-text` in .gitattributes,
-      # so the correct expectation on every platform is zero failures.
+      # Step 4b: The subprocess encryption path is only meaningfully testable
+      # against a real age release, so fetch the same version the AppImage
+      # bundles and point the tests at it. Without SLIP39_AGE_DIR those tests
+      # skip, which would quietly leave the encryptor untested in CI. Pinned by
+      # checksum for the same reason the packaging script pins it.
+      - name: Fetch age for the native-encryptor tests
+        run: |
+          curl -fsSL -o age.tar.gz             https://github.com/FiloSottile/age/releases/download/v1.3.1/age-v1.3.1-linux-amd64.tar.gz
+          echo "bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377  age.tar.gz" | sha256sum -c -
+          tar -xzf age.tar.gz
+          echo "SLIP39_AGE_DIR=$PWD/age" >> "$GITHUB_ENV"
+
+      # Step 4c: The whole suite — Core units, payload schema, BIP-32 fingerprint,
+      # integration round-trips, bUnit UI, the C2SP/CCTV age wire-format vectors,
+      # the foreign-backup fixtures, and the native encryptor fetched above. Any
+      # failure fails the build. This replaced an older gate that tolerated 61
+      # CCTV failures, a threshold calibrated against a Windows checkout where
+      # core.autocrlf had corrupted the byte-exact vectors (reported and fixed
+      # upstream as pscheid92/AgeSharp#3). Those vectors now carry the -text
+      # attribute, so the right expectation on every platform is zero failures.
       - name: Test
         run: dotnet test Slip39Demo.slnx -c Release --no-build --verbosity normal
 

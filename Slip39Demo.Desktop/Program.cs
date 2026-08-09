@@ -25,6 +25,11 @@ static class Program
         // Post-generation gate: same independent JS round-trip (slip39-js + typage)
         // as the web demo — WebKitGTK provides the JS engine and WebCrypto.
         builder.Services.AddScoped<IIndependentVerifier, JsIndependentVerifier>();
+        // Encryption runs the official age binary bundled beside this app, not the
+        // AgeSharp library linked into it. An encryption bug cannot be detected
+        // after the fact, so the side where mistakes are invisible gets the
+        // reference implementation. Fails closed if the binary is missing.
+        builder.Services.AddScoped<IPayloadEncryptor, NativeAgeEncryptor>();
         // Airgap gate from kernel state (/sys/class/net), not webview state.
         builder.Services.AddScoped<IConnectivityProbe, LinuxConnectivityProbe>();
 

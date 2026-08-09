@@ -41,6 +41,47 @@ cp "$PUB_DIR/wwwroot/_content/Slip39Demo.UI/favicon.png" "$APPDIR/slip39-backup.
 cp -r "$PUB_DIR/." "$APPDIR/usr/bin/"
 chmod +x "$APPDIR/AppRun" "$APPDIR/usr/bin/Slip39Demo.Desktop"
 
+# ── Bundle the official age binary ─────────────────────────────────────
+# The app encrypts by running this program rather than the AgeSharp library
+# linked into it: an encryption bug is invisible afterwards, so the side where
+# mistakes cannot be detected gets the reference implementation.
+#
+# Pinned by version AND by checksum. An unpinned download would mean the bytes
+# guarding somebody's seed phrase are whatever the network served that day.
+# Update both together, deliberately, never one alone.
+#
+# The Linux build is statically linked with no interpreter and no glibc symbols,
+# verified against v1.3.1, so it runs on Tails untouched and adds no library
+# requirements to the AppImage.
+AGE_VERSION="v1.3.1"
+AGE_TARBALL="age--linux-amd64.tar.gz"
+AGE_SHA256="bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377"
+
+echo "Fetching age ..."
+curl -fsSL -o "/"   "https://github.com/FiloSottile/age/releases/download//"
+
+ACTUAL_SHA=""
+if [ "" != "" ]; then
+  echo "error: age tarball checksum mismatch"
+  echo "  expected "
+  echo "  actual   "
+  exit 1
+fi
+
+# Lands at usr/bin/age/, which is AppContext.BaseDirectory + "age" at runtime,
+# where NativeAgeEncryptor looks. age-plugin-batchpass must travel with it: age
+# has no way to take a passphrase without a terminal otherwise.
+tar -xzf "/" -C ""
+mkdir -p "/usr/bin/age"
+cp "/age/age" "/age/age-plugin-batchpass" "/usr/bin/age/"
+chmod +x "/usr/bin/age/age" "/usr/bin/age/age-plugin-batchpass"
+
+# Fail the build rather than ship an AppImage whose encryptor is absent: the app
+# refuses to generate without it, so this would be a release nobody can use.
+[ -x "/usr/bin/age/age" ] || { echo "error: bundled age binary missing or not executable"; exit 1; }
+[ -x "/usr/bin/age/age-plugin-batchpass" ] || { echo "error: bundled batchpass plugin missing"; exit 1; }
+echo "Bundled age: /usr/bin/bash: line 75: /usr/bin/age/age: No such file or directory"
+
 # ── Fetch appimagetool (pinned to the 'continuous' official build) ─────
 TOOL="$WORK/appimagetool"
 curl -fsSL -o "$TOOL" \

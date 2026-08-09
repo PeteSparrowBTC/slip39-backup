@@ -14,6 +14,10 @@ builder.Services.AddScoped<IFileDownloader, BrowserFileDownloader>();
 // Post-generation gate: backups must round-trip through independent JS
 // implementations (slip39-js + typage) before the tool hands them out.
 builder.Services.AddScoped<IIndependentVerifier, JsIndependentVerifier>();
+// The browser cannot start a subprocess, so this build encrypts in-process with
+// AgeSharp. It is the DEMONSTRATION build and watermarks its output
+// INSECURE-TEST; the Tails AppImage runs the official age binary instead.
+builder.Services.AddScoped<IPayloadEncryptor, AgeSharpPayloadEncryptor>();
 // Airgap indicator + INSECURE-TEST watermark gate.
 builder.Services.AddScoped<IConnectivityProbe, JsConnectivityProbe>();
 

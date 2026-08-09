@@ -23,6 +23,10 @@ public class OwnerFormValidationTests : TestContext
         // override to exercise the refusal / watermark paths.
         Services.AddSingleton<IIndependentVerifier>(new FakeVerifier(Result.Success()));
         Services.AddSingleton<IConnectivityProbe>(new FakeProbe(online: false));
+        // The in-process encryptor, not the native one: these tests must not
+        // depend on an age binary being present. The subprocess path has its own
+        // tests against a real downloaded release.
+        Services.AddSingleton<IPayloadEncryptor>(new AgeSharpPayloadEncryptor());
     }
 
     // Scripted connectivity probe for the airgap gate.

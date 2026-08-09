@@ -11,6 +11,9 @@
     <PackageReference Include="bunit" Version="1.34.0" />
     <PackageReference Include="FluentAssertions" Version="6.12.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <!-- SkippableFact: the native-age tests need a real age release on disk, and
+         a contributor without one should see a skip, not a red suite. -->
+    <PackageReference Include="Xunit.SkippableFact" Version="1.5.23" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
     <PackageReference Include="ZXing.Net.Bindings.ImageSharp.V3" Version="0.16.18" />
@@ -18,6 +21,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Slip39Demo.Core\Slip39Demo.Core.csproj" />
     <ProjectReference Include="..\Slip39Demo.UI\Slip39Demo.UI.csproj" />
+    <!-- NativeAgeEncryptor lives in the desktop host; its subprocess plumbing is
+         the part most worth testing and cannot be reached from UI alone. -->
+    <ProjectReference Include="..\Slip39Demo.Desktop\Slip39Demo.Desktop.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- C2SP/CCTV age wire-format vectors, read at runtime by
