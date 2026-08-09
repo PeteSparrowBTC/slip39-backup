@@ -7,11 +7,11 @@
    Re-checks every 10 seconds so pulling the cable flips it live. *@
 @if (isOnline is null)
 {
-    <div class="alert alert-secondary small p-2 mb-3">Checking network status…</div>
+    <div class="banner">Checking network status…</div>
 }
 else if (isOnline == true)
 {
-    <div class="alert alert-danger p-2 mb-3">
+    <div class="banner banner-loud">
         <strong>⚠ This machine is ONLINE.</strong> Disconnect from the internet
         (ideally boot Tails and stay offline) before entering any seed.
         Backups generated while online are marked <strong>INSECURE-TEST</strong>
@@ -20,7 +20,7 @@ else if (isOnline == true)
 }
 else
 {
-    <div class="alert alert-success small p-2 mb-3">✓ No internet reachable — offline.</div>
+    <div class="banner banner-ok">✓ No internet reachable. This machine is offline.</div>
 }
 
 @code {
