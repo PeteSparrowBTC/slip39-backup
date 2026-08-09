@@ -94,10 +94,39 @@ echo "Bundled age reports: $BUNDLED_AGE_VERSION"
 [ "$BUNDLED_AGE_VERSION" = "$AGE_VERSION" ] || {
   echo "error: bundled age reports '$BUNDLED_AGE_VERSION', expected '$AGE_VERSION'"; exit 1; }
 
-# ── Fetch appimagetool (pinned to the 'continuous' official build) ─────
+# ── Fetch appimagetool, pinned by version AND by checksum ──────────────
+# 'continuous' was not a pin. It is a tag the project rebuilds in place (last on
+# 2025-12-04), so it names whatever was pushed most recently rather than
+# anything anyone reviewed, and the comment claiming it was pinned was the same
+# kind of claim as the checksum comparison above that compared nothing.
+#
+# This tool writes the squashfs image people run against real seed phrases, so
+# it gets the same treatment as the age binary: a fixed version, a checksum
+# compared explicitly so a failure prints both values, and the two updated
+# together, never one alone.
+#
+# The repository matters as well as the version. AppImage/appimagetool is the
+# maintained home with real semantic versions; AppImage/AppImageKit publishes
+# its release-13 assets under 'obsolete-' names.
+#
+# Checksum taken from PeteSparrowBTC/tails-appimage and confirmed here against a
+# fresh download on 2026-08-09.
+APPIMAGETOOL_VERSION="1.9.1"
+APPIMAGETOOL_SHA256="ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
+APPIMAGETOOL_URL="https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage"
 TOOL="$WORK/appimagetool"
-curl -fsSL -o "$TOOL" \
-  "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+
+echo "Fetching appimagetool ${APPIMAGETOOL_VERSION}..."
+curl -fsSL -o "$TOOL" "$APPIMAGETOOL_URL"
+
+ACTUAL_TOOL_SHA="$(sha256sum "$TOOL" | cut -d' ' -f1)"
+if [ "$ACTUAL_TOOL_SHA" != "$APPIMAGETOOL_SHA256" ]; then
+  echo "error: appimagetool checksum mismatch"
+  echo "  expected $APPIMAGETOOL_SHA256"
+  echo "  actual   $ACTUAL_TOOL_SHA"
+  exit 1
+fi
+echo "Verified appimagetool against its pinned checksum."
 chmod +x "$TOOL"
 
 # ── Build. --appimage-extract-and-run avoids needing FUSE (WSL/containers).
