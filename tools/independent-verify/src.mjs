@@ -65,5 +65,64 @@ async function verifyBackup({ subsets, payloadAgeB64, expectedPayloadText }) {
   }
 }
 
+// Produces a complete backup using ONLY the third-party implementations, so the
+// C# stack can be made to read something it did not write.
+//
+// verifyBackup above covers one direction: C# writes, JS reads. That is the
+// direction Owner mode needs. Recoverer mode does the opposite, and the inputs
+// it gets are not necessarily ours: a payload.age re-encrypted with the Go age
+// CLI, shares typed off paper and re-emitted by another SLIP-39 tool. A parsing
+// divergence there shows up at recovery, on an airgapped machine, with nobody
+// around to debug it.
+//
+// The caller (JsIndependentVerifier) recovers this with Xecrets + AgeSharp and
+// checks the plaintext. The key is deliberately NOT returned: the C# side has to
+// reconstruct it from the mnemonics, otherwise the SLIP-39 half proves nothing.
+//
+// Work factor: this probe protects nothing (the key is thrown away when the
+// function returns), so it uses the cheapest scrypt cost the age spec allows
+// rather than the ~1 second default. The gate runs on the airgapped machine at
+// generation time and should not cost the user a visible pause. The CCTV
+// reference vectors themselves use a work factor of 10.
+async function produceForeignProbe() {
+  try {
+    const key = new Uint8Array(32);
+    crypto.getRandomValues(key);
+    const keyHex = toHex(key);
+
+    // A 2-of-3 split is the smallest shape that exercises a real threshold
+    // (recovery from fewer shares than were issued) rather than a trivial 1-of-1.
+    const split = Slip39.fromArray([...key], {
+      passphrase: '',
+      threshold: 1,
+      groups: [[2, 3, 'probe']],
+    });
+    const mnemonics = split.fromPath('r/0').mnemonics;
+
+    const payloadText = 'SPS foreign-implementation probe\nnot a wallet payload\n';
+    const encrypter = new age.Encrypter();
+    encrypter.setPassphrase(keyHex);
+    encrypter.setScryptWorkFactor(10);
+    const ciphertext = await encrypter.encrypt(payloadText);
+
+    return {
+      ok: true,
+      mnemonics,
+      payloadAgeB64: toBase64(ciphertext),
+      expectedPayloadText: payloadText,
+      error: null,
+    };
+  } catch (e) {
+    return { ok: false, mnemonics: null, payloadAgeB64: null, expectedPayloadText: null,
+             error: `${e?.name ?? 'Error'}: ${e?.message ?? e}` };
+  }
+}
+
+function toBase64(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
 // Expose for Blazor JS interop.
-window.SPSVerify = { verifyBackup };
+window.SPSVerify = { verifyBackup, produceForeignProbe };

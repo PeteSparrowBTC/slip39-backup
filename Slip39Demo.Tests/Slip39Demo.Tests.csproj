@@ -25,5 +25,9 @@
          embedded so a failing vector can be inspected as a file next to the
          test binary. -->
     <Content Include="Age\Cctv\testdata\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Backups produced entirely by the third-party JS stack, read back by
+         ForeignBackupRoundTripTests. Regenerate with
+         tools/independent-verify/make-foreign-fixtures.mjs. -->
+    <Content Include="Interop\foreign-backups.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

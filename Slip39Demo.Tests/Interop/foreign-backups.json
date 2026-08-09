@@ -1,0 +1,94 @@
+{
+  "producedBy": "slip39-js 0.1.9 + typage (age-encryption 0.3.0), no C# involvement",
+  "note": "The 32-byte key is deliberately absent. The C# side must reconstruct it from the mnemonics.",
+  "fixtures": [
+    {
+      "name": "3-of-5 single group, extendable",
+      "extendable": true,
+      "groupThreshold": 1,
+      "groups": [
+        {
+          "name": "group",
+          "threshold": 3,
+          "count": 5
+        }
+      ],
+      "mnemonics": [
+        "facility biology academic acne acquire cradle spine regular salt location tenant simple erode pipeline strike ranked penalty radar phantom umbrella ancient punish floral prayer careful extend satisfy paid taxi ounce shrimp chemical sympathy",
+        "facility biology academic agree adult universe biology presence simple response smug favorite merit pacific slow gravity pecan daisy favorite smug desktop violence olympic drink privacy dramatic belong glance believe both belong famous hospital",
+        "facility biology academic amazing auction fluff hesitate crush slap grasp swing senior fatigue remind game theater genuine vampire expect evoke deploy triumph husky disaster chew review desert valid early alpha penalty surface wolf",
+        "facility biology academic arcade artist ounce pregnant disaster scandal fumes ultimate flavor maiden meaning enlarge depend genre hazard rich idea armed prize random privacy modify software tidy aquatic sled maximum keyboard practice explain",
+        "facility biology academic axle angry wits domestic garden smell lilac width news sugar client float ladybug evening visual clothes axis work armed sympathy python object evening blessing ladle diminish saver tackle mobile duckling"
+      ],
+      "payloadAgeB64": "YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHNjcnlwdCBPYmVhWTFIK0JtUVVWOTVhMVFXMXhBIDE4ClZSdGZnT2hSVkJ4NkpNU3p0QzlpTDhSbGJaZ0FFNUhLRzhRMW9LbFQ0Zm8KLS0tIEorZWkySkhLcFNQQks1UmJic0lsajUxRUdXZFpDbkpFdFBzNXE5dU5GSDQK3eKCrsw7kETCPp3vgDbFQS2nYEXtPqjXjTsE+NldzPWmnCtleGzKSLo+MozRuhp40K0gaJERhNq6uXUAaAp6gyICBWyAhZqxQlFz5scNkb7fJol0ctJhhOJoYn2ihEIuqIYUrdU4mOscVxupq/xDCVCQYLDnKgmMc0Ot+d4YzyCo64VPe5mkctDNthoQQYnJ4oIGSMtZwLq7pSO0LVsDG0rgUlcX6RbQ9RYOutqmTTMgoE562ROlQZnF9Pvx0MQZQPYh4DZWFgnYzzKDFxXv3V7g9WZ60tmEAY8KCYQcDsu8xsSpqXHDbThILRW/0MWzC8M2RU9QgbS8wGV3BOZ1JN67kbJNumpv9TD2KxUQdsq7sMG8H0W9Dp8wolV3tcOOH+ZzvZb5A9UnGyoRH0LjxJMgGnFlPV2h2Ii0S4Jr9/yvRVVLVS0ZpJPW",
+      "expectedPayloadText": "schema_version: 1.1\ncreated: 2026-01-01\nlabel: \"Main wallet\"\n\nseed_words: abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about\n\ncosigners:\n  - id: main\n    wallet_type: single_sig\n    derivation_path: m/84'/0'/0'\n\nthreshold: 3-of-5\nslip39_extendable: false\n"
+    },
+    {
+      "name": "2-of-3 single group, NON-extendable",
+      "extendable": false,
+      "groupThreshold": 1,
+      "groups": [
+        {
+          "name": "group",
+          "threshold": 2,
+          "count": 3
+        }
+      ],
+      "mnemonics": [
+        "unusual recover academic acid amuse traffic surface promise rumor froth acid texture campus olympic mandate dress elite warn smoking warmth pitch profile greatest island view document biology voter hand story analysis forget alive",
+        "unusual recover academic agency alarm enlarge shadow wrap lend necklace harvest distance learn moment adapt decision scene adequate visual darkness dish nylon adult curly depict fiction deadline remember remove oven emerald blimp airline",
+        "unusual recover academic always alarm dance wrap glimpse vocal square spider extra loyalty evil lilac company exclude evaluate orange fancy dish library plastic prayer senior parcel glad adequate jerky flame unwrap biology mixed"
+      ],
+      "payloadAgeB64": "YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHNjcnlwdCArenJZTDU1OXhRV2o3bzhqUE5rUWtBIDE4CnRJNjUwWjFXUzBOUnFSRjEwNmErZG4xZnhadUpzMFRWdmxaMWtrTVFDNjQKLS0tIE8yS05xS1hUcVAwalpBL05vd3BIdW0xVUp6YjNaTWF2bitiWWVteHl6MncKTuR7/iwQB0gkIQsNBzzxUSRFe8vbNdBmgKfZEoPPZwHCecsLV8qP4KoCtxQfnYGfc4lGTAQutA7UrkVunctgzVUy6keQ6epnKzNOcuKk7w1B9tk1CV7EL+H060e6SArU+49RL1QYSFaH1Rv1hjG4GZnwOmuQ26r/l6XwQ7gCvRgTauat9MW0DzKzC4XO3cUMIS3ogmx1A7EfNJMAWF1kh8JOuQXfXMsVhoVYUcWrT7OwamSL4ej7CyUDFvf+6TDJXWrpmHG3yr4puwfjhmYh2c5W9MQUAnGPpnuhwtQ8vu0PUXAoBODYrqw0hlIv+tr8YEBtDLF5NUlKldbzvjoDcpuvSITTk/Y4/x4DFIy6hJH/GIOqFxzxNg6CQFO3UQfxB2OhaRFB8rMxWoYyO1VP2p5YiDAxvC/yTg==",
+      "expectedPayloadText": "schema_version: 1.1\ncreated: 2026-01-01\nlabel: \"Small wallet\"\n\nseed_words: legal winner thank year wave sausage worth useful legal winner thank yellow\n\ncosigners:\n  - id: main\n    wallet_type: single_sig\n    derivation_path: m/84'/0'/0'\n\nthreshold: 3-of-5\nslip39_extendable: false\n"
+    },
+    {
+      "name": "3-of-5 single group, NON-extendable",
+      "extendable": false,
+      "groupThreshold": 1,
+      "groups": [
+        {
+          "name": "group",
+          "threshold": 3,
+          "count": 5
+        }
+      ],
+      "mnemonics": [
+        "isolate branch academic acne admit strategy blimp adorn hour fatigue cultural slow funding evaluate slice tracks tendency famous forecast plastic decrease tracks petition robin clogs bracelet budget fawn teacher shadow station echo radar",
+        "isolate branch academic agree alcohol traffic dive teaspoon liquid short prize slavery moisture amount grocery species premium voter agency lungs realize robin yoga bracelet luck pupal best union remind sidewalk destroy trend entrance",
+        "isolate branch academic amazing airport amount ocean sled phantom object smoking satisfy curly punish describe writing prevent wireless expect hanger fumes living vitamins salon space machine burden ivory hanger plastic should echo detailed",
+        "isolate branch academic arcade actress disease receiver daisy express adult fatal romp teammate very pacific short teacher furl beaver enlarge story swing prepare harvest hybrid crystal belong salary decent practice counter trend shelter",
+        "isolate branch academic axle adorn coal guard carve metric gasoline genius filter hazard erode safari birthday smug friendly testify crucial plastic privacy purple nylon alto chubby fawn knit bundle beyond chubby playoff frozen"
+      ],
+      "payloadAgeB64": "YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHNjcnlwdCBXWmZFbDBsYXE4bXB3KzNvdHh2ckhRIDE4CnZFbFd4dVVSREVQaHdJTEJ6R2lzdVcrR3UyWU1VNjBBUE43NHRkNTVKWXcKLS0tIFpudGcwTEFQOStIeHo2ZGYvcVdRbU9IcEZyd2VNd09DbXhTTm5RcDIwRUEKVr5vS6q4/9/9yMlG08+v1Bhtb5Y6gO+fbMRspvgj7Yun4hkyqlg/AXPtUienIhBkYj9pIBnhMiB1AwOCQ0mT85DIIUFFCkZjfjJJd5A5C6Umjpu3A5DbUZq3UxZ1Qi4OC/kIsr0Pt51KPf9rzVULwZX7tth/KWouTnWoOZmAI/krO+xOKhZr6lQ1ymWhTd0HQ2eMMepU8ycim2o4YCDElRB7HuwZ+5xUHpLDamwaA7SRMXnXy4lWV2LMl3VBWRBEPALBJOOJtgIkh9jVtBxHlEmSVEGnmZ1SPLuwcQSSqXAPXFHrB2/b82uiSHXjx9MCh/0mKNj0eekLQKXTpWDNLCtgSgV6dkPPS64Urv3ZNZMwi6SQSrzZXiQi34tTuWlVLK0u1GCINg==",
+      "expectedPayloadText": "schema_version: 1.1\ncreated: 2026-01-01\nlabel: \"Legacy-format wallet\"\n\nseed_words: zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong\n\ncosigners:\n  - id: main\n    wallet_type: single_sig\n    derivation_path: m/84'/0'/0'\n\nthreshold: 3-of-5\nslip39_extendable: false\n"
+    },
+    {
+      "name": "2 groups, both required (2-of-3 and 2-of-3), extendable",
+      "extendable": true,
+      "groupThreshold": 2,
+      "groups": [
+        {
+          "name": "alpha",
+          "threshold": 2,
+          "count": 3
+        },
+        {
+          "name": "beta",
+          "threshold": 2,
+          "count": 3
+        }
+      ],
+      "mnemonics": [
+        "unusual moment acrobat echo advocate shaped crowd evil browser together clogs funding garlic boundary else museum nail leaf headset ceramic violence benefit spine process duration royal isolate science frozen decorate floral expect downtown",
+        "unusual moment acrobat email advocate glimpse flame ting nuclear grill slice gather alive impact member oral employer density source snake being declare merchant quantity reaction nervous daisy fake acquire birthday client viral science",
+        "unusual moment acrobat entrance afraid sugar speak husky pipeline total unfold club cards oasis shelter lobe likely payroll admit privacy divorce beaver fused mustang dynamic provide spill typical vanish wolf privacy clogs woman",
+        "unusual moment beard echo ancestor forecast domain tension organize exercise promise skunk easy document ounce demand club swing filter coding exclude chemical dish welcome hospital have mason bundle sprinkle wrist mountain darkness weapon",
+        "unusual moment beard email academic loud meaning anatomy repair harvest wealthy pickup pants dress goat pink practice uncover random puny satoshi writing spider detect transfer magazine genuine perfect symbolic trash object sharp burning",
+        "unusual moment beard entrance award center equip decrease glance easy afraid income decorate diploma lawsuit hour order dough mayor gesture vampire forecast wildlife general space true execute avoid gasoline beyond reward robin slim"
+      ],
+      "payloadAgeB64": "YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IHNjcnlwdCBYSmVZVjlYcDR6bjdpTEtCd0UvQlFRIDE4CkZFWk1oenpEbXJmelU5TFNYUTVSSE9kcU05NUtWRHZtSkIxMzlPM20rQTAKLS0tIEFMMmdWb3dmdlZLRVF3dHdqcXUwZ2JjZnFTMXVXbG5ic29FUnFKRDlBOFkKvYDjUIuDoz5TQSIZsQBrPzJ1cLCL5eWQoayfA9hplEXy10X8jG8AMM8AJBE1S6U57UaF/moK6GqAzbWzN3V6IgEAMZyTtVc53xOCMdbz3F24uDRxlYvYT34lGheNwFii/i98/OVOBvUwD3SjIWF0Ox4nfO2stQa1Q87K25LyOqGhudoY0WgBKYBi874HtoSv2hCvXipz9MIQo1DvgGuUotQ5NI1ohpPXdYVZ/XckSN7jvdQyrbL3T3evlvDC14cnL8CdE/7gQvZW3BejFgj6yYmp6YCVKbeV45IKWhi+Pv4lxV3w2IRj2GBbNGg2GnsQoL4torDKJ9jwHAXdz6LkhfiN8wxAme+2uiIcpJ72lh8PdA7vtjTIEz3tYhk3i51bX++j41GDj6opAvPxwHC3xSHyJB0aPIbuWUedD/KoQVo=",
+      "expectedPayloadText": "schema_version: 1.1\ncreated: 2026-01-01\nlabel: \"Two-path wallet\"\n\nseed_words: letter advice cage absurd amount doctor acoustic avoid letter advice cage above\n\ncosigners:\n  - id: main\n    wallet_type: single_sig\n    derivation_path: m/84'/0'/0'\n\nthreshold: 3-of-5\nslip39_extendable: false\n"
+    }
+  ]
+}

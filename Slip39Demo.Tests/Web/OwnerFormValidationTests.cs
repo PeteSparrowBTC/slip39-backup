@@ -55,9 +55,12 @@ public class OwnerFormValidationTests : TestContext
     }
 
     // Scripted verifier: returns the configured result and records what it saw.
-    sealed class FakeVerifier(Result result) : IIndependentVerifier
+    // foreignResult defaults to success so existing tests exercise the forward
+    // gate in isolation; the reverse gate gets its own test below.
+    sealed class FakeVerifier(Result result, Result? foreignResult = null) : IIndependentVerifier
     {
         public List<(int SubsetCount, int PayloadLength)> Calls { get; } = new();
+        public int ForeignCalls { get; private set; }
 
         public Task<Result> VerifyAsync(
             IReadOnlyList<IReadOnlyList<string>> subsets, byte[] payloadAge, string expectedPayloadText)
@@ -65,6 +68,42 @@ public class OwnerFormValidationTests : TestContext
             Calls.Add((subsets.Count, payloadAge.Length));
             return Task.FromResult(result);
         }
+
+        public Task<Result> VerifyForeignReadableAsync()
+        {
+            ForeignCalls++;
+            return Task.FromResult(foreignResult ?? Result.Success());
+        }
+    }
+
+    [Fact]
+    public void Generate_WhenThisBuildCannotReadAForeignBackup_RefusesDownload()
+    {
+        // The reverse gate. The forward check passes here (this build writes
+        // something the JS stack can read), but the build cannot read what the JS
+        // stack writes, which means Recoverer mode would fail on a payload.age or
+        // share set that came through any other tool. Refuse rather than hand out
+        // a backup only this binary can open.
+        var downloader = new NoopDownloader();
+        var verifier = new FakeVerifier(
+            Result.Success(),
+            Result.Failure("this build cannot combine SLIP-39 shares written by another implementation"));
+        Services.AddSingleton<IFileDownloader>(downloader);
+        Services.AddSingleton<IIndependentVerifier>(verifier);
+
+        var cut = RenderComponent<Owner>();
+        cut.FindAll("input.font-monospace").First()
+            .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+        cut.Find("button.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.FindAll(".alert-danger").Should()
+                .Contain(el => el.TextContent.Contains("REFUSED") && el.TextContent.Contains("cross-implementation"));
+        }, timeout: TimeSpan.FromSeconds(10));
+
+        downloader.Calls.Should().BeEmpty();
+        verifier.ForeignCalls.Should().Be(1);
     }
 
     [Fact]

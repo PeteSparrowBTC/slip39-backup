@@ -178,6 +178,23 @@
                 return;
             }
 
+            // The gate above proves this build writes something others can read.
+            // This one proves it can READ what others write, which is what
+            // Recoverer mode is asked to do when an heir turns up with a
+            // payload.age and shares that passed through other tools on the way.
+            // Both must hold before anything leaves the machine: a build that
+            // cannot read a foreign backup fails at recovery, and recovery is the
+            // one moment where nobody is around to work around a surprise.
+            var foreignReadable = await Verifier.VerifyForeignReadableAsync();
+            if (foreignReadable.IsFailure)
+            {
+                errorMessage =
+                    "Backup REFUSED — this build failed the cross-implementation self-test: "
+                    + "it could not read a backup written by the independent implementations. "
+                    + $"Nothing was downloaded. Details: {foreignReadable.Error}";
+                return;
+            }
+
             // Name the download after what it is + when it was made, so a user
             // juggling several wallet backups can tell them apart on disk instead
             // of a pile of identical "output.zip" files. Shape:
@@ -188,7 +205,8 @@
             successMessage =
                 (IsTestOnly ? "INSECURE-TEST backup (practice only). " : "")
                 + $"Generated {outcome.MnemonicCount} share(s), independently verified ✓ "
-                + $"(recovered by slip39-js + typage). Wallet master fingerprint: {outcome.Fingerprint}. "
+                + "(recovered by slip39-js + typage, and this build read a backup they wrote). "
+                + $"Wallet master fingerprint: {outcome.Fingerprint}. "
                 + $"Bundle downloaded as {fileName}.";
         }
         finally
