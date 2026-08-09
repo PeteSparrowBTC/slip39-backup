@@ -632,12 +632,22 @@ public class ConnectivityBannerTests : TestContext
 
     // banner-loud must never be reachable in the safe state, because a reader
     // who learns that the loud shape means danger has to be able to rely on it.
+    //
+    // The positive assertion is load-bearing, not decoration. "banner-loud" is
+    // absent from the pre-resolution render too, so a lone NotContain would pass
+    // before the probe ever resolved, and would keep passing if the component got
+    // stuck on "Checking network status" forever. Requiring banner-ok in the same
+    // block forces the wait past the neutral state first.
     [Fact]
     public void Offline_state_never_uses_the_loud_shape()
     {
         var cut = RenderMarkup(online: false);
 
-        cut.WaitForAssertion(() => Assert.DoesNotContain("banner-loud", cut.Markup));
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("banner-ok", cut.Markup);
+            Assert.DoesNotContain("banner-loud", cut.Markup);
+        });
     }
 }
 ```
