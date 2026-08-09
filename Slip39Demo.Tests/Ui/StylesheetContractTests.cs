@@ -23,6 +23,35 @@ public class StylesheetContractTests
     static string AppCss() =>
         File.ReadAllText(Path.Combine(RepoRoot(), "Slip39Demo.UI", "wwwroot", "css", "app.css"));
 
+    // The exact class vocabulary task-1-brief.md promises to every later task
+    // ("Produces", Interfaces section). A name listed there that app.css does not
+    // define is dead on arrival for whichever task consumes it: this is exactly how
+    // btn-ghost got into the first draft of the contract and out of review, because
+    // nothing checked the list against the stylesheet.
+    static readonly string[] ContractClasses =
+    [
+        "app", "panel", "panel-header", "panel-body", "banner", "banner-ok", "banner-warn",
+        "banner-loud", "field", "field-label", "hint", "hint-loud", "input", "input-mono",
+        "btn", "btn-primary", "btn-danger", "btn-sm", "btn-block", "split", "split-sticky",
+        "cols", "row-between", "mono-block", "words", "transcript", "t-command", "t-output",
+        "t-warning", "t-note", "check", "spinner", "section-label", "subtitle", "page-head",
+    ];
+
+    // Matches the class as a whole selector token, not a substring: `\.panel\b`
+    // would also satisfy on `.panel-header` because `-` is a non-word character, so
+    // the lookahead excludes any [\w-] continuation instead of relying on \b.
+    [Fact]
+    public void Every_contract_class_is_defined_in_the_stylesheet()
+    {
+        var css = AppCss();
+        var missing = ContractClasses
+            .Where(name => !Regex.IsMatch(css, $@"\.{Regex.Escape(name)}(?![\w-])"))
+            .ToArray();
+
+        missing.Should().BeEmpty(
+            $"app.css must define every class the plan's contract promises; missing: {string.Join(", ", missing)}");
+    }
+
     [Theory]
     [InlineData("--bg", "#14161a")]
     [InlineData("--panel", "#1c1f26")]
