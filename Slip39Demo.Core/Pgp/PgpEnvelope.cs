@@ -33,12 +33,26 @@ namespace Slip39Demo.Core.Pgp;
 // BouncyCastle is already a dependency (Bip32MasterFingerprint uses it for
 // secp256k1 and RIPEMD160), so this adds no new supply chain.
 //
-// KEY CONVENTION
+// KEY CONVENTION, AND WHAT IT COSTS
 // The same 64-character lowercase hex encoding of the 32-byte SLIP-39 master
 // secret that AgePassphrase uses. Deliberately the same secret for both layers:
 // reusing a full-entropy passphrase across two independent schemes, each with
 // its own salt and KDF, is sound, and it keeps recovery to one secret typed
 // twice rather than a derivation step no ordinary tool can perform.
+//
+// That choice bounds what the cascade hedges, and the boundary is easy to
+// forget:
+//   - A break in either CIPHER or FORMAT: the cascade holds. Breaking age's
+//     internals does not yield K, because K enters only through scrypt, which is
+//     one-way, so the attacker still faces AES-256 here.
+//   - A break that recovers the PASSPHRASE ITSELF (scrypt or the OpenPGP S2K
+//     inverted, so a derived key yields its input): the cascade collapses, since
+//     recovering K from either layer opens the other.
+// Independent keys via HKDF would close the second case and would also make
+// recovery a scripted derivation instead of `gpg -d` then `age -d`. KDF
+// inversion is a far stranger event than a cipher break, so the trade stands.
+// See docs/decisions/2026-08-09-envelope-entropy-and-implementations.md before
+// changing it.
 public static class PgpEnvelope
 {
     // gpg's own default for symmetric encryption is AES-256; matching it keeps
