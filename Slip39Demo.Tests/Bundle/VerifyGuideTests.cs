@@ -24,10 +24,16 @@ public class VerifyGuideTests
     // the key, and age is not on Tails, so both acquisition steps must survive.
     [Theory]
     [InlineData("github.com/FiloSottile/age/releases", "where to get the reference age implementation")]
-    [InlineData("Tails does not come with age", "the fact that forces the USB-stick approach")]
+    [InlineData("github.com/str4d/rage/releases", "where to get the independent Rust implementation")]
+    [InlineData("github.com/trezor/python-shamir-mnemonic", "the SLIP-39 spec authors' own tool")]
+    [InlineData("github.com/3rdIteration/slip39", "the third-party browser SLIP-39 page")]
+    [InlineData("Tails does not come with any of them", "the fact that forces the USB-stick approach")]
     [InlineData("pip install --no-index -f shamir-pkgs", "installing the SLIP-39 tool with no internet")]
     [InlineData("pip download shamir-mnemonic", "fetching it on the online machine first")]
-    [InlineData("sha256sum age-v1.2.x-linux-amd64.tar.gz", "verifying the downloaded age binary itself")]
+    // Pinned to a real released filename. The guide previously named a v1.2.x
+    // file that no longer exists on the releases page.
+    [InlineData("age-v1.3.1-linux-amd64.tar.gz", "a filename that actually exists upstream")]
+    [InlineData("sha256sum age-v1.3.1-linux-amd64.tar.gz", "fingerprinting the download before the USB hop")]
     public void Guide_ExplainsHowToObtainTheTools(string fragment, string why) =>
         VerifyGuide.Text.Should().Contain(fragment, why);
 
@@ -89,4 +95,44 @@ public class VerifyGuideTests
     [Fact]
     public void PayloadReadme_PointsAtTheGuide() =>
         PayloadReadme.Text.Should().Contain(VerifyGuide.FileName);
+
+
+
+    // age publishes sigsum .proof files, not a checksums list. An instruction to
+    // "compare against the published value" sends the reader looking for
+    // something that does not exist.
+    [Fact]
+    public void Guide_DoesNotClaimAgePublishesAChecksumsList()
+    {
+        VerifyGuide.Text.Should().NotContain("The same page publishes checksums");
+        VerifyGuide.Text.Should().Contain(".proof");
+    }
+
+    // "Independent" is a claim about authorship, not about code. The guide has to
+    // name who wrote each tool, or the reader has no way to judge whether the
+    // agreement between them means anything.
+    [Theory]
+    [InlineData("Filippo Valsorda", "age's author")]
+    [InlineData("SatoshiLabs", "who wrote the SLIP-39 specification")]
+    [InlineData("str4d", "rage's author, unrelated to age's")]
+    public void Guide_NamesWhoWroteEachTool(string who, string why) =>
+        VerifyGuide.Text.Should().Contain(who, why);
+
+    // Nothing in this procedure may route the reader through software this
+    // project produced. If it did, it would stop being an independent check,
+    // which is the only reason the document exists.
+    [Fact]
+    public void Guide_SendsTheReaderOnlyToUpstreamProjects() =>
+        VerifyGuide.Text.Should().NotContain("VERIFY-IN-BROWSER",
+            "a checker shipped in our own bundle cannot verify our own bundle");
+
+    // B6 used to reference ./rage without ever unpacking it.
+    [Fact]
+    public void Guide_UnpacksRageBeforeUsingIt()
+    {
+        var text = VerifyGuide.Text;
+        text.IndexOf("tar -xzf rage-", StringComparison.Ordinal)
+            .Should().BeGreaterThan(0).And
+            .BeLessThan(text.IndexOf("rage/rage -d", StringComparison.Ordinal));
+    }
 }

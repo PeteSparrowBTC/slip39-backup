@@ -52,43 +52,75 @@ PART A - COLLECT THE TOOLS (on your ONLINE machine)
 Do this BEFORE booting the offline machine. Nothing secret is
 involved in this part, so an ordinary computer is fine.
 
-Tails does not come with age. Tails ships GnuPG, and installing
-software on Tails needs internet access, which defeats the whole
-point of an airgapped session. So carry the programs in on a USB
-stick instead.
+Every program below was written by someone else. That is the
+whole point of this exercise: they have no reason to agree with
+the tool that made your backup unless the backup is genuinely
+correct. Download them from their own project pages, listed
+here, and not from anywhere this tool sent you.
 
-A1. age (the reference implementation, written in Go):
-        https://github.com/FiloSottile/age/releases
-    Download the Linux build, named like:
-        age-v1.2.x-linux-amd64.tar.gz
-    The same page publishes checksums. Verify the download on
-    this online machine before you carry it anywhere:
-        sha256sum age-v1.2.x-linux-amd64.tar.gz
-    and compare against the published value, character by
-    character. A tampered age binary would happily tell you your
-    backup is fine.
-    Copy the .tar.gz to the USB stick.
+Tails does not come with any of them. Tails ships GnuPG, and
+installing software on Tails needs internet access, which
+defeats the point of an airgapped session. So carry the programs
+in on a USB stick instead.
+
+A1. age, by Filippo Valsorda, who designed the age format. This
+    is the reference implementation, written in Go.
+        Downloads: github.com/FiloSottile/age/releases
+        Source:    github.com/FiloSottile/age
+    Take the newest version. The file you want is named for your
+    computer, for example (version numbers will differ):
+        Linux    age-v1.3.1-linux-amd64.tar.gz
+        macOS    age-v1.3.1-darwin-arm64.tar.gz
+                 (age-v1.3.1-darwin-amd64.tar.gz on older Macs)
+        Windows  age-v1.3.1-windows-amd64.zip
+
+    Note the fingerprint of what you downloaded:
+        sha256sum age-v1.3.1-linux-amd64.tar.gz
+    Write the result down. After copying the file to the USB
+    stick, run the same command on the offline machine and check
+    you get the same answer. That proves the copy arrived intact.
+
+    age does not publish a plain list of checksums to compare
+    against, so this checks the copy, not the origin. Your
+    protection there is that you downloaded it over a secure
+    connection from the project's own release page. If you want
+    more, every download has a matching .proof file and the age
+    project documents how to verify it with sigsum.
+
+    Copy the .tar.gz (or .zip) to the USB stick.
 
 A2. A SLIP-39 tool, to turn your shares back into the key that
-    age needs as its passphrase:
+    age needs as its passphrase. This one is by SatoshiLabs, who
+    wrote the SLIP-39 specification:
+        Source:    github.com/trezor/python-shamir-mnemonic
+    Install it for offline use with:
         pip download shamir-mnemonic -d shamir-pkgs
     That folder installs with no internet later. Copy the whole
     shamir-pkgs folder to the USB stick.
 
-    Prefer a browser? Save this page for offline use instead
-    (Ctrl+S, "Webpage, Complete", copy the .html AND the folder
-    saved beside it):
-        https://3rditeration.github.io/slip39/src/
+    Prefer a browser? There is a third-party page that does the
+    same job, and it works offline once saved:
+        Page:      3rditeration.github.io/slip39/src/
+        Source:    github.com/3rdIteration/slip39
+    Open it, press Ctrl+S, choose "Webpage, Complete", and copy
+    the saved .html file AND the folder saved beside it onto the
+    USB stick.
 
     Do NOT use the older page at iancoleman.io/slip39. It
     predates the SLIP-39 extendable-backup flag and rejects
     valid shares from this tool as if they were corrupt.
 
-A3. Optional second age implementation, if you want two
-    unrelated programs to agree rather than one:
-        https://github.com/str4d/rage/releases
-    (rage is the Rust implementation.) Same idea: download,
-    check the checksum, copy to the USB stick.
+A3. Optional: rage, a separate age implementation written in
+    Rust by str4d. Unrelated to age's author and to this tool,
+    so if it agrees as well, three independent groups of people
+    agree about your backup.
+        Downloads: github.com/str4d/rage/releases
+        Source:    github.com/str4d/rage
+    For example (version numbers will differ):
+        Linux    rage-v0.12.1-x86_64-linux.tar.gz
+        macOS    rage-v0.12.1-arm64-darwin.tar.gz
+        Windows  rage-v0.12.1-x86_64-windows.zip
+    Same idea: note its fingerprint, copy it to the USB stick.
 
 PART B - CHECK IT (on the OFFLINE machine)
 ----------------------------------------------------------------
@@ -139,8 +171,11 @@ B5. Confirm the file has not been altered since it was made:
     USB is the blob the tool produced.
 
 B6. (Optional, from A3) Have a second, unrelated implementation
-    read the same file:
-        ./rage -d payload.age > check3.txt
+    read the same file. Unpack it first:
+        tar -xzf rage-*-linux.tar.gz
+        chmod +x rage/rage
+    then:
+        ./rage/rage -d payload.age > check3.txt
         diff check.txt check3.txt && echo "SECOND TOOL OK"
 
 WHAT THE RESULT MEANS
@@ -176,7 +211,7 @@ present from B3:
 
     ./age/age -p -o payload-by-age-cli.age check.txt
 
-Type the SAME 64 hex characters at the prompt (twice). You now
+Type the SAME 64 hex characters when it asks. You now
 hold two blobs, written by two unrelated programs, either of
 which alone recovers the wallet with the same shares. Store it
 alongside the original.
