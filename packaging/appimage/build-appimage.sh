@@ -54,33 +54,45 @@ chmod +x "$APPDIR/AppRun" "$APPDIR/usr/bin/Slip39Demo.Desktop"
 # verified against v1.3.1, so it runs on Tails untouched and adds no library
 # requirements to the AppImage.
 AGE_VERSION="v1.3.1"
-AGE_TARBALL="age--linux-amd64.tar.gz"
+AGE_TARBALL="age-${AGE_VERSION}-linux-amd64.tar.gz"
 AGE_SHA256="bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377"
+AGE_URL="https://github.com/FiloSottile/age/releases/download/${AGE_VERSION}/${AGE_TARBALL}"
 
-echo "Fetching age ..."
-curl -fsSL -o "/"   "https://github.com/FiloSottile/age/releases/download//"
+echo "Fetching age ${AGE_VERSION}..."
+curl -fsSL -o "$WORK/$AGE_TARBALL" "$AGE_URL"
 
-ACTUAL_SHA=""
-if [ "" != "" ]; then
+# Compared explicitly rather than through `sha256sum -c`, so a failure prints
+# both values. A mismatch means the bytes that would encrypt somebody's seed
+# phrase are not the bytes that were reviewed.
+ACTUAL_SHA="$(sha256sum "$WORK/$AGE_TARBALL" | cut -d' ' -f1)"
+if [ "$ACTUAL_SHA" != "$AGE_SHA256" ]; then
   echo "error: age tarball checksum mismatch"
-  echo "  expected "
-  echo "  actual   "
+  echo "  expected $AGE_SHA256"
+  echo "  actual   $ACTUAL_SHA"
   exit 1
 fi
+echo "Verified age tarball against its pinned checksum."
 
 # Lands at usr/bin/age/, which is AppContext.BaseDirectory + "age" at runtime,
 # where NativeAgeEncryptor looks. age-plugin-batchpass must travel with it: age
 # has no way to take a passphrase without a terminal otherwise.
-tar -xzf "/" -C ""
-mkdir -p "/usr/bin/age"
-cp "/age/age" "/age/age-plugin-batchpass" "/usr/bin/age/"
-chmod +x "/usr/bin/age/age" "/usr/bin/age/age-plugin-batchpass"
+tar -xzf "$WORK/$AGE_TARBALL" -C "$WORK"
+mkdir -p "$APPDIR/usr/bin/age"
+cp "$WORK/age/age" "$WORK/age/age-plugin-batchpass" "$APPDIR/usr/bin/age/"
+chmod +x "$APPDIR/usr/bin/age/age" "$APPDIR/usr/bin/age/age-plugin-batchpass"
 
 # Fail the build rather than ship an AppImage whose encryptor is absent: the app
 # refuses to generate without it, so this would be a release nobody can use.
-[ -x "/usr/bin/age/age" ] || { echo "error: bundled age binary missing or not executable"; exit 1; }
-[ -x "/usr/bin/age/age-plugin-batchpass" ] || { echo "error: bundled batchpass plugin missing"; exit 1; }
-echo "Bundled age: /usr/bin/bash: line 75: /usr/bin/age/age: No such file or directory"
+[ -x "$APPDIR/usr/bin/age/age" ] || { echo "error: bundled age binary missing or not executable"; exit 1; }
+[ -x "$APPDIR/usr/bin/age/age-plugin-batchpass" ] || { echo "error: bundled batchpass plugin missing"; exit 1; }
+
+# Run it rather than only checking the file is present. A binary for the wrong
+# architecture, or one that cannot start, would otherwise reach a user's USB
+# stick and fail on the airgapped machine where nobody can fix it.
+BUNDLED_AGE_VERSION="$("$APPDIR/usr/bin/age/age" --version)"
+echo "Bundled age reports: $BUNDLED_AGE_VERSION"
+[ "$BUNDLED_AGE_VERSION" = "$AGE_VERSION" ] || {
+  echo "error: bundled age reports '$BUNDLED_AGE_VERSION', expected '$AGE_VERSION'"; exit 1; }
 
 # ── Fetch appimagetool (pinned to the 'continuous' official build) ─────
 TOOL="$WORK/appimagetool"
