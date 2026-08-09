@@ -54,11 +54,24 @@ public class ConnectivityBannerTests : TestContext
 
     // banner-loud must never be reachable in the safe state, because a reader
     // who learns that the loud shape means danger has to be able to rely on it.
+    //
+    // The banner-ok assertion here is load-bearing, not decoration: without it,
+    // WaitForAssertion is satisfied by the very first synchronous render (the
+    // neutral "Checking network status..." markup, which also lacks
+    // banner-loud), before CheckAsync has resolved the probe at all. That would
+    // let this test pass even if the component never reached the offline state,
+    // or if a regression stranded it on the neutral branch forever. Requiring
+    // banner-ok in the same assertion block forces the wait past the neutral
+    // render before the negative claim about banner-loud is evaluated.
     [Fact]
     public void Offline_state_never_uses_the_loud_shape()
     {
         var cut = RenderMarkup(online: false);
 
-        cut.WaitForAssertion(() => cut.Markup.Should().NotContain("banner-loud"));
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.Should().Contain("banner-ok");
+            cut.Markup.Should().NotContain("banner-loud");
+        });
     }
 }
