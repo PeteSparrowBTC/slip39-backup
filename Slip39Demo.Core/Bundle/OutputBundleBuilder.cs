@@ -8,8 +8,9 @@ namespace Slip39Demo.Core.Bundle;
 //   payload/payload.age        ciphertext bytes
 //   payload/payload.age.txt    ASCII-armored ciphertext
 //   payload/IMPORTANT-READ-FIRST.txt   PayloadReadme.Text
+//   payload/VERIFY-THIS-BACKUP.txt     VerifyGuide.Text (owner, do it now)
 //   verification-record.txt    VerificationRecord.Build(...) text
-//   MANUAL-RECOVERY.txt        tool-independent recovery manual
+//   MANUAL-RECOVERY.txt        tool-independent recovery manual (heir, later)
 //
 // The user receives ONE file via browser download, copies it onto their
 // output USB, then distributes pieces from there as per spec §6.4.
@@ -32,6 +33,10 @@ public static class OutputBundleBuilder
             AddEntry(archive, "payload/payload.age", payloadAgeBinary);
             AddEntry(archive, "payload/payload.age.txt", Encoding.UTF8.GetBytes(payloadAgeArmoredText));
             AddEntry(archive, "payload/IMPORTANT-READ-FIRST.txt", Encoding.UTF8.GetBytes(PayloadReadme.Text));
+            // Sits next to the blob it tells the owner to verify, so whoever opens
+            // the folder holding the ciphertext finds the procedure for proving it
+            // decrypts without this tool.
+            AddEntry(archive, $"payload/{VerifyGuide.FileName}", Encoding.UTF8.GetBytes(VerifyGuide.Text));
             AddEntry(archive, "verification-record.txt", Encoding.UTF8.GetBytes(verificationRecordText));
             // Tool-independent recovery manual at the bundle root too (it is also
             // inside every share zip): the owner's master copy should be complete

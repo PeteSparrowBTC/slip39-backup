@@ -30,6 +30,7 @@ public class OutputBundleBuilderTests
         names.Should().BeEquivalentTo([
             "MANUAL-RECOVERY.txt",
             "payload/IMPORTANT-READ-FIRST.txt",
+            "payload/VERIFY-THIS-BACKUP.txt",
             "payload/payload.age",
             "payload/payload.age.txt",
             "shares/share-1-of-3.zip",

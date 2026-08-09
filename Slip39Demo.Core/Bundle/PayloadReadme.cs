@@ -15,6 +15,15 @@ public static class PayloadReadme
         "What is in this folder:\n" +
         "  - payload.age          binary age-encrypted blob (the secret)\n" +
         "  - payload.age.txt      same blob, ASCII-armored for paste into PMs\n" +
+        "  - VERIFY-THIS-BACKUP.txt   how to prove this blob decrypts using\n" +
+        "                         other people's tools, not this one\n" +
+        "\n" +
+        "DO THIS FIRST:\n" +
+        "  Follow VERIFY-THIS-BACKUP.txt before you distribute any share,\n" +
+        "  and before you shut the offline machine down. The tool checked\n" +
+        "  itself using software it shipped, which cannot catch a tool that\n" +
+        "  is wrong the same way twice. Twenty minutes now, while every\n" +
+        "  share is still in front of you, beats an expedition later.\n" +
         "\n" +
         "Where to put it:\n" +
         "  - PRIMARY:   a dedicated password manager entry (Bitwarden /\n" +
