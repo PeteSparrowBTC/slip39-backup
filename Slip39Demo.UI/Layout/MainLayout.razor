@@ -1,8 +1,7 @@
 ﻿@inherits LayoutComponentBase
-<div class="page">
-    <main>
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
+
+@* One application, two pages, no sidebar. The template's nav rendered a single
+   link to the page the reader was already on, and nothing referenced it. *@
+<main class="app">
+    @Body
+</main>
