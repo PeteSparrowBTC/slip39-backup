@@ -126,6 +126,42 @@ public class VerifyGuideTests
         VerifyGuide.Text.Should().NotContain("VERIFY-IN-BROWSER",
             "a checker shipped in our own bundle cannot verify our own bundle");
 
+    // This procedure decrypts the wallet in the clear, and the guide's own
+    // warning says to do it only on the offline machine. Listing a macOS or
+    // Windows download quietly contradicts that: it invites the reader to verify
+    // on their everyday laptop. The only download filenames offered are Linux
+    // ones, and the macOS and Windows builds are named exactly once, to be
+    // dismissed.
+    [Fact]
+    public void Guide_OffersLinuxDownloadsOnly()
+    {
+        var text = VerifyGuide.Text;
+
+        text.Should().NotContain("darwin", "macOS build filenames must not be offered");
+        text.Should().NotContain("windows-amd64", "Windows build filenames must not be offered");
+        text.Should().Contain("age-v1.3.1-linux-amd64.tar.gz");
+        text.Should().Contain("rage-v0.12.1-x86_64-linux.tar.gz");
+        text.Should().Contain("Ignore them", "the other builds are mentioned only to be waved off");
+    }
+
+    // Neither project ships an AppImage, and neither needs to: both archives hold
+    // a single self-contained program. Readers who go looking for an AppImage and
+    // find none should not conclude they have the wrong download.
+    [Fact]
+    public void Guide_SaysNoAppImageIsNeeded() =>
+        VerifyGuide.Text.Should().Contain("There is no AppImage and none is needed");
+
+    // rage's ordinary Linux build is dynamically linked (glibc 2.34 as of
+    // v0.12.1) while age's is fully static. Current Tails satisfies that, but the
+    // musl package is the escape hatch if a future Tails does not, and it can be
+    // unpacked without installing anything, which matters on an amnesic system.
+    [Fact]
+    public void Guide_OffersTheMuslFallbackForRage()
+    {
+        VerifyGuide.Text.Should().Contain("rage-musl_0.12.1-1_amd64.deb");
+        VerifyGuide.Text.Should().Contain("dpkg-deb -x", "it must be unpacked, not installed");
+    }
+
     // B6 used to reference ./rage without ever unpacking it.
     [Fact]
     public void Guide_UnpacksRageBeforeUsingIt()

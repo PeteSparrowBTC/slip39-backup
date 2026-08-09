@@ -67,12 +67,19 @@ A1. age, by Filippo Valsorda, who designed the age format. This
     is the reference implementation, written in Go.
         Downloads: github.com/FiloSottile/age/releases
         Source:    github.com/FiloSottile/age
-    Take the newest version. The file you want is named for your
-    computer, for example (version numbers will differ):
-        Linux    age-v1.3.1-linux-amd64.tar.gz
-        macOS    age-v1.3.1-darwin-arm64.tar.gz
-                 (age-v1.3.1-darwin-amd64.tar.gz on older Macs)
-        Windows  age-v1.3.1-windows-amd64.zip
+    Take the newest version, and take the LINUX file, because
+    you are going to run it on Tails:
+        age-v1.3.1-linux-amd64.tar.gz
+    (version numbers will differ; "amd64" is right for any
+    ordinary PC or Intel Mac. There are Windows and macOS builds
+    on that page. Ignore them. You do not want to be typing your
+    seed words into your everyday computer.)
+
+    There is no AppImage and none is needed. Inside the archive
+    is a single self-contained program, about 6 MB, that needs
+    nothing installed: unpack it and run it. Checked against
+    v1.3.1: it is statically linked and depends on no system
+    libraries at all, so it runs on Tails as it stands.
 
     Note the fingerprint of what you downloaded:
         sha256sum age-v1.3.1-linux-amd64.tar.gz
@@ -116,11 +123,17 @@ A3. Optional: rage, a separate age implementation written in
     agree about your backup.
         Downloads: github.com/str4d/rage/releases
         Source:    github.com/str4d/rage
-    For example (version numbers will differ):
-        Linux    rage-v0.12.1-x86_64-linux.tar.gz
-        macOS    rage-v0.12.1-arm64-darwin.tar.gz
-        Windows  rage-v0.12.1-x86_64-windows.zip
+    Again the Linux file (version numbers will differ):
+        rage-v0.12.1-x86_64-linux.tar.gz
     Same idea: note its fingerprint, copy it to the USB stick.
+
+    If Tails refuses to run it, complaining about a missing or
+    too-old library, take the musl build from the same page
+    instead, which carries everything it needs inside it:
+        rage-musl_0.12.1-1_amd64.deb
+    You do not install it. Unpack it in place with:
+        dpkg-deb -x rage-musl_0.12.1-1_amd64.deb rage-musl
+    and the program is then at rage-musl/usr/bin/rage.
 
 PART B - CHECK IT (on the OFFLINE machine)
 ----------------------------------------------------------------
