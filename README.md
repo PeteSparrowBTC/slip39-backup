@@ -146,11 +146,11 @@ See [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md) for the complete guide.
 
 **Requirements:**
 - .NET 10 SDK
-- Git (clone with `--recurse-submodules` — the core references a patched AgeSharp fork)
+- Git
 
 **Build the Tails AppImage** (publish on any OS; packaging needs Linux/WSL):
 ```bash
-git clone --recurse-submodules https://github.com/PeteSparrowBTC/slip39-backup.git
+git clone https://github.com/PeteSparrowBTC/slip39-backup.git
 cd slip39-backup
 dotnet publish Slip39Demo.Desktop -c Release -r linux-x64 --self-contained -o pub-desktop
 bash packaging/appimage/build-appimage.sh pub-desktop slip39-backup-x86_64.AppImage

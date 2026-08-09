@@ -20,7 +20,9 @@ on:
       - "Slip39Demo.UI/**"
       - "Slip39Demo.Desktop/**"
       - "packaging/appimage/**"
-      - "third_party/AgeSharp/**"
+      # Tests gate the artifact (see the Test step below), so a change to them
+      # must rebuild it.
+      - "Slip39Demo.Tests/**"
       - ".github/workflows/appimage.yml"
     # Version tags (v2.0.0, ...) build AND publish the AppImage to a GitHub Release.
     tags:
@@ -34,17 +36,32 @@ jobs:
   appimage:
     runs-on: ubuntu-latest
     steps:
-      # Submodules are required: Slip39Demo.Core references the patched AgeSharp
-      # fork at third_party/AgeSharp via ProjectReference.
-      - name: Checkout (with submodules)
+      # No submodules: the patched AgeSharp fork that used to live at
+      # third_party/AgeSharp is gone, replaced by the released AgeSharp NuGet
+      # package (see Slip39Demo.Core.csproj for why).
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
+
+      # Gate the artifact on the test suite BEFORE anything is packaged.
+      #
+      # This workflow publishes a GitHub Release on a v* tag, and that AppImage
+      # is what people run against real seed phrases on an airgapped machine. It
+      # previously built, packaged and released without running a single test:
+      # `dotnet test` and the age conformance vectors lived only in
+      # build-and-release.yml, which does not produce this artifact. A tag push
+      # could therefore ship code whose tests had never run.
+      #
+      # The suite covers SLIP-39 split/combine round-trips, the payload schema,
+      # the BIP-32 fingerprint, the bUnit UI flows, and the C2SP/CCTV age
+      # wire-format conformance vectors. It costs a few minutes; an
+      # unrecoverable backup artifact costs everything.
+      - name: Test (gates the released artifact)
+        run: dotnet test Slip39Demo.slnx -c Release --verbosity normal
 
       # Mirror the Tails 7 library set so the smoke test exercises the same
       # webview stack the target machine has. xvfb provides a headless display.

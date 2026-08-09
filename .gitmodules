@@ -1,4 +1,0 @@
-[submodule "third_party/AgeSharp"]
-	path = third_party/AgeSharp
-	url = https://github.com/PeteSparrowBTC/AgeSharp.git
-	branch = wasm-bouncy-chacha

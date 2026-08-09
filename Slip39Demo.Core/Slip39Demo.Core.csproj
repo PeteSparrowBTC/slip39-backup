@@ -7,23 +7,38 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <!-- AgeSharp NuGet was dropped in favour of the patched fork at
-         third_party/AgeSharp (branch wasm-bouncy-chacha), which swaps the
-         BCL ChaCha20Poly1305 (UnsupportedOSPlatform("browser")) for a
-         BouncyCastle-backed adapter so the library works under Blazor WASM. -->
+    <!-- 0.2.0-preview.4 replaces the local fork that used to live at
+         third_party/AgeSharp. Two upstream changes made the fork obsolete:
+
+         1. pscheid92/AgeSharp#2 (our report, fixed in PR #15): AgeSharp now
+            selects the AEAD backend by capability — the native BCL
+            ChaCha20Poly1305 where ChaCha20Poly1305.IsSupported, BouncyCastle's
+            managed cipher where it is not, which is exactly the Blazor WASM
+            case. The fork's unconditional BouncyCastle swap is no longer
+            needed, and keeping it would cost the desktop/AppImage build the
+            native cipher (~2x slower, ~336 B allocated per 64 KiB chunk).
+         2. pscheid92/AgeSharp#91: 39 of 40 defects from a differential audit
+            against the Go and Rust age implementations, backported to the v0.2
+            line. Includes plugin binaries being resolved from the current
+            working directory (arbitrary code execution + file-key disclosure),
+            an armor decoder that rejected ~4% of valid armored files, and
+            AgeRandomAccess never authenticating the final chunk (silent
+            acceptance of truncated ciphertext).
+
+         The fork was pinned at v0.2.0-preview.2 and carried none of it. -->
+    <PackageReference Include="AgeSharp" Version="0.2.0-preview.4" />
+    <!-- Used directly by Bip32MasterFingerprint (secp256k1 point multiplication
+         and RIPEMD160, neither of which the BCL provides). AgeSharp depends on
+         the same version transitively; pinned explicitly because our own code
+         is a first-class consumer, not just a beneficiary of AgeSharp's graph. -->
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
     <PackageReference Include="CSharpFunctionalExtensions" Version="3.6.0" />
     <PackageReference Include="QRCoder" Version="1.8.0" />
-    <!-- 2.3.1668 is the first release carrying the GenerateId fix (xecrets/xecrets-slip39#28):
-         id is now masked to 15 bits (& 0x7FFF) instead of `% ((1<<16)-1)`, which produced
-         negative ids (OverflowException) or silently truncated 16-bit ids on the
-         extendable=false path. Bumped from 2.3.1315. -->
+    <!-- 2.3.1668 is the first release carrying the GenerateId fix (xecrets/xecrets-slip39#28,
+         our report): id is now masked to 15 bits (& 0x7FFF) instead of `% ((1<<16)-1)`, which
+         produced negative ids (OverflowException) or silently truncated 16-bit ids on the
+         extendable=false path. It also carries #30 (extendable-flag consistency check) and
+         #31 (iteration exponent validation). Latest published release. -->
     <PackageReference Include="Xecrets.Slip39" Version="2.3.1668" />
-  </ItemGroup>
-  <ItemGroup>
-    <!-- Patched AgeSharp consumed via git submodule + ProjectReference. See
-         third_party/AgeSharp/Age/Crypto/BcChaCha20Poly1305.cs for the WASM
-         compatibility shim. -->
-    <ProjectReference Include="..\third_party\AgeSharp\Age\Age.csproj" />
   </ItemGroup>
 </Project>

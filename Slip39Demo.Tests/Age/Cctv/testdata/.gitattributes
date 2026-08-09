@@ -1,0 +1,10 @@
+# CCTV wire-format vectors are byte-exact reference data. Git's content sniffing
+# classifies most of them as text, and with core.autocrlf=true (the Windows
+# default) it rewrites their LF endings to CRLF on checkout, corrupting the
+# vectors. That is not hypothetical: it made 61 of 143 vectors fail on Windows
+# and was reported upstream as pscheid92/AgeSharp#3.
+#
+# `-text` disables EOL conversion in both directions. Preferred over `binary`,
+# which expands to `-diff -merge -text` and would also suppress diffs on the
+# armored vectors, which are human-readable and worth seeing in review.
+* -text

@@ -19,4 +19,11 @@
     <ProjectReference Include="..\Slip39Demo.Core\Slip39Demo.Core.csproj" />
     <ProjectReference Include="..\Slip39Demo.UI\Slip39Demo.UI.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- C2SP/CCTV age wire-format vectors, read at runtime by
+         CctvScryptArmorVectorTests. Copied to the output directory rather than
+         embedded so a failing vector can be inspected as a file next to the
+         test binary. -->
+    <Content Include="Age\Cctv\testdata\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
