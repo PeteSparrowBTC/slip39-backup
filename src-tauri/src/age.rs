@@ -21,9 +21,10 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 /// Where build-appimage.sh puts the official binaries, relative to the executable.
 const AGE_SUBDIR: &str = "age";
@@ -65,6 +66,28 @@ fn bundle_missing(age: &Path, plugin: &Path) -> AgeRun {
     }
 }
 
+/// Carried over from NativeAgeEncryptor.cs, which waited two minutes. Encrypting a few
+/// kilobytes takes milliseconds, so this bound is never approached in normal operation:
+/// it exists so that a plugin waiting on something that will never arrive fails instead
+/// of leaving the window spinning with no way out but killing the application. The
+/// direction is safe either way, because a timeout fails generation rather than producing
+/// a file.
+const RUN_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// How often the wait loop checks. Small enough to be imperceptible against a program
+/// that finishes in milliseconds, large enough not to spin a core while waiting.
+const POLL_INTERVAL: Duration = Duration::from_millis(20);
+
+/// Runs a program, feeds it stdin, and returns its exit code, raw stdout and stderr.
+///
+/// The two pipes are drained on their own threads rather than after the child exits, and
+/// that is not a stylistic choice. Writing all of stdin and then waiting deadlocks if the
+/// child fills its stdout pipe buffer before it has consumed all of stdin: each side
+/// blocks waiting for the other. For this payload (a wallet record, hundreds of bytes to
+/// a few kilobytes, against a pipe buffer of 64 KB on Linux) that is not reachable today,
+/// but it is reachable by anyone who later makes the payload larger, and it would present
+/// as the application hanging with no diagnostic. Draining concurrently also makes the
+/// timeout above enforceable, because nothing is parked in a blocking read.
 fn run(exe: &Path, args: &[&str], dir: &Path, stdin: Option<&[u8]>, passphrase: Option<&str>)
     -> std::io::Result<(i32, Vec<u8>, String)>
 {
@@ -82,17 +105,68 @@ fn run(exe: &Path, args: &[&str], dir: &Path, stdin: Option<&[u8]>, passphrase: 
     }
 
     let mut child = command.spawn()?;
+
+    let mut out_pipe = child.stdout.take().expect("stdout was piped");
+    let mut err_pipe = child.stderr.take().expect("stderr was piped");
+    let out_reader = std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        out_pipe.read_to_end(&mut bytes).map(|_| bytes)
+    });
+    let err_reader = std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        err_pipe.read_to_end(&mut bytes).map(|_| bytes)
+    });
+
     if let Some(bytes) = stdin {
         child.stdin.as_mut().expect("stdin was piped").write_all(bytes)?;
     }
+    // Closing stdin is what tells age there is no more payload. Without it the child
+    // waits for input that will never come and the timeout below is the only way out.
     drop(child.stdin.take());
 
-    let output = child.wait_with_output()?;
+    let deadline = Instant::now() + RUN_TIMEOUT;
+    let status = loop {
+        match child.try_wait()? {
+            Some(status) => break status,
+            None if Instant::now() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    format!(
+                        "{} did not finish within {} seconds and was killed",
+                        exe.display(),
+                        RUN_TIMEOUT.as_secs()
+                    ),
+                ));
+            }
+            None => std::thread::sleep(POLL_INTERVAL),
+        }
+    };
+
+    let stdout = join_reader(out_reader, "stdout")?;
+    let stderr = join_reader(err_reader, "stderr")?;
+
     Ok((
-        output.status.code().unwrap_or(-1),
-        output.stdout,
-        String::from_utf8_lossy(&output.stderr).into_owned(),
+        status.code().unwrap_or(-1),
+        stdout,
+        String::from_utf8_lossy(&stderr).into_owned(),
     ))
+}
+
+/// Collects one of the reader threads. A panic in a thread whose only job is
+/// `read_to_end` should not be reported as a successful run with empty output, which is
+/// what ignoring the join error would do.
+fn join_reader(
+    handle: std::thread::JoinHandle<std::io::Result<Vec<u8>>>,
+    which: &str,
+) -> std::io::Result<Vec<u8>> {
+    match handle.join() {
+        Ok(result) => result,
+        Err(_) => Err(std::io::Error::other(format!(
+            "the thread reading the program's {which} panicked"
+        ))),
+    }
 }
 
 /// The whole of the work, with the directory passed in rather than discovered.

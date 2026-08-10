@@ -1162,7 +1162,7 @@ In `main.rs`, add `mod age;` and extend the handler:
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-Expected: PASS, 10 tests (5 in `net`, 5 in `age`). The real-age test prints
+Expected: PASS, 11 tests (5 in `net`, 1 in `save`, 5 in `age`). The real-age test prints
 `skipped: SLIP39_AGE_DIR is not set` and passes; that is expected off CI.
 
 To run it for real on Linux, fetch the pinned release first and point the variable at
