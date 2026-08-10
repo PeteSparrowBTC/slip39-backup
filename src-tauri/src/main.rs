@@ -28,6 +28,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod age;
 mod net;
 mod save;
 
@@ -35,7 +36,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![net::is_online, save::save_file])
+        .invoke_handler(tauri::generate_handler![net::is_online, save::save_file, age::age_encrypt])
         .run(tauri::generate_context!())
         .expect("slip39-backup: failed to start the window");
 }
