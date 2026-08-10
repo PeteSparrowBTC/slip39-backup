@@ -39,8 +39,11 @@ WHAT YOU NEED
     payload.age.gpg (the same thing with one extra lock, see
     Step 2). Any one of them is enough. It was kept by the
     owner — password manager, safe, or with their executor.
- 3. An OFFLINE computer. Ideally Tails (tails.net) on a USB
-    stick: boot it, and do NOT connect to the internet.
+ 3. An OFFLINE computer running Tails (tails.net) from a USB
+    stick. Boot it and do NOT connect to the internet. This is
+    mandatory, not a preference: recovery puts your seed words
+    on the screen, and a network connection at that moment is
+    the one mistake you cannot undo afterwards.
  4. A second, ordinary USB stick carrying the tools, prepared
     below BEFORE going offline.
 

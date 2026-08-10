@@ -91,8 +91,9 @@
                 <label class="check">
                     <input type="checkbox" id="airgap-attest" @bind="attested" />
                     <span>
-                        I confirm this machine is offline / airgapped (ideally Tails)
-                        and will stay offline until this browser session ends.
+                        I confirm this machine is running Tails, is disconnected from
+                        every network, and will stay disconnected until this session
+                        ends. This is required for a real backup, not advised.
                     </span>
                 </label>
 
@@ -109,9 +110,42 @@
                 {
                     <div class="banner banner-loud">@errorMessage</div>
                 }
-                @if (successMessage is not null)
+                @* The result, as labelled rows rather than one run-on sentence. The
+                   fingerprint and the filename are the two things a reader has to
+                   copy or compare against something else, so they get their own
+                   monospaced rows instead of being buried mid-paragraph. *@
+                @if (success is not null)
                 {
-                    <div class="banner banner-ok">@successMessage</div>
+                    <div class="banner banner-ok">
+                        <strong>
+                            @(success.TestOnly
+                                ? "INSECURE-TEST backup. Practice only, never for real funds."
+                                : "Backup created.")
+                        </strong>
+
+                        <div class="field">
+                            <span class="field-label">Shares written</span>
+                            <p class="hint">@success.ShareCount</p>
+                        </div>
+
+                        <div class="field">
+                            <span class="field-label">Independently verified ✓</span>
+                            <p class="hint">
+                                Recovered by slip39-js and typage, and this build read a
+                                backup those libraries wrote.
+                            </p>
+                        </div>
+
+                        <div class="field">
+                            <span class="field-label">Wallet master fingerprint</span>
+                            <p class="mono-block">@success.Fingerprint</p>
+                        </div>
+
+                        <div class="field">
+                            <span class="field-label">Downloaded as</span>
+                            <p class="mono-block">@success.FileName</p>
+                        </div>
+                    </div>
                 }
 
                 <button class="btn btn-primary btn-block" @onclick="GenerateAsync"
@@ -181,7 +215,13 @@
     readonly OwnerFormModel model = new();
     bool isGenerating;
     string? errorMessage;
-    string? successMessage;
+    GenerationSummary? success;
+
+    // What the result panel shows. A record rather than a formatted string, so the
+    // page decides the layout and the fingerprint and filename can each sit in their
+    // own monospaced row for copying and comparing.
+    sealed record GenerationSummary(
+        bool TestOnly, int ShareCount, Bip32Fingerprint Fingerprint, string FileName);
 
     // Environment gate. machineOnline: null until the first probe completes.
     // A REAL (unwatermarked) backup requires probe==offline AND the user's
@@ -199,7 +239,7 @@
     async Task GenerateAsync()
     {
         errorMessage = null;
-        successMessage = null;
+        success = null;
         isGenerating = true;
         try
         {
@@ -253,12 +293,7 @@
             transcript = outcome.Transcript;
             var fileName = BuildBundleFileName(model.Label, IsTestOnly);
             await Downloader.DownloadAsync(fileName, outcome.Bundle, "application/zip");
-            successMessage =
-                (IsTestOnly ? "INSECURE-TEST backup (practice only). " : "")
-                + $"Generated {outcome.MnemonicCount} share(s), independently verified ✓ "
-                + "(recovered by slip39-js + typage, and this build read a backup they wrote). "
-                + $"Wallet master fingerprint: {outcome.Fingerprint}. "
-                + $"Bundle downloaded as {fileName}.";
+            success = new GenerationSummary(IsTestOnly, outcome.MnemonicCount, outcome.Fingerprint, fileName);
         }
         finally
         {

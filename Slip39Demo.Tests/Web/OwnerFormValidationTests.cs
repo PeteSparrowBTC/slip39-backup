@@ -163,7 +163,9 @@ public class OwnerFormValidationTests : TestContext
             verifier.Calls.Should().ContainSingle();
             verifier.Calls[0].SubsetCount.Should().Be(2);
             verifier.Calls[0].PayloadLength.Should().BeGreaterThan(0);
-            cut.Markup.Should().Contain("independently verified");
+            // Case-insensitive: this is a row label in the result panel now, so its
+            // capitalisation is presentation and should not be what the test pins.
+            cut.Markup.Should().ContainEquivalentOf("independently verified");
         }, timeout: TimeSpan.FromSeconds(10));
 
         downloader.Calls.Should().ContainSingle();
@@ -317,7 +319,11 @@ public class OwnerFormValidationTests : TestContext
         cut.WaitForAssertion(() =>
         {
             downloader.Calls.Should().ContainSingle(c => c.Filename.StartsWith("INSECURE-TEST-"));
-            cut.Markup.Should().Contain("INSECURE-TEST backup (practice only)");
+            // Asserted on the words, not the punctuation: the result panel now renders
+            // labelled rows rather than one sentence, so what matters is that the page
+            // still says INSECURE-TEST and still says practice only.
+            cut.Markup.Should().Contain("INSECURE-TEST backup");
+            cut.Markup.Should().Contain("Practice only");
         }, timeout: TimeSpan.FromSeconds(10));
     }
 

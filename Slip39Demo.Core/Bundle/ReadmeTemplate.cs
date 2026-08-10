@@ -75,7 +75,9 @@ public static class ReadmeTemplate
         sb.AppendLine("    themselves and tells you when you have enough.");
         sb.AppendLine("  - The separate encrypted file `payload.age`, obtained from the");
         sb.AppendLine("    owner's password manager OR their offline backups.");
-        sb.AppendLine("  - A clean offline machine — Tails ideally.");
+        sb.AppendLine("  - A clean machine running Tails, disconnected from every");
+        sb.AppendLine("    network. Required, not preferred: recovery shows the seed");
+        sb.AppendLine("    words on screen.");
         sb.AppendLine("  - The slip39-backup tool that produced this share (or an");
         sb.AppendLine("    alternative below).");
         sb.AppendLine();
