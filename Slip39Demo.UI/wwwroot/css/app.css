@@ -325,6 +325,20 @@ a { color: var(--accent); }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Inline SVG icons, sized in em so they track the heading they sit in. See
+   Slip39Demo.UI/Shared/Icon.razor for why these are not emoji. */
+.icon {
+    width: 1.05em;
+    height: 1.05em;
+    flex: none;
+}
+
+.with-icon {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+
 /* Blazor's own error strip, kept because a silent failure in a tool that guards
    seed phrases is worse than a visible one. */
 #blazor-error-ui {

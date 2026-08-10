@@ -12,7 +12,9 @@ public class StylesheetContractTests
 {
     // Walks up from the test binary to the repository root, so the test does not
     // care whether it runs from bin/Debug, bin/Release, or a CI working directory.
-    static string RepoRoot()
+    // Internal (not private) so IconTests can reach it without duplicating the
+    // walk-up logic.
+    internal static string RepoRootPath()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Slip39Demo.slnx")))
@@ -21,7 +23,7 @@ public class StylesheetContractTests
     }
 
     static string AppCss() =>
-        File.ReadAllText(Path.Combine(RepoRoot(), "Slip39Demo.UI", "wwwroot", "css", "app.css"));
+        File.ReadAllText(Path.Combine(RepoRootPath(), "Slip39Demo.UI", "wwwroot", "css", "app.css"));
 
     // The exact class vocabulary task-1-brief.md promises to every later task
     // ("Produces", Interfaces section). A name listed there that app.css does not
@@ -35,6 +37,7 @@ public class StylesheetContractTests
         "btn", "btn-primary", "btn-danger", "btn-sm", "btn-block", "split", "split-sticky",
         "cols", "row-between", "mono-block", "words", "transcript", "t-command", "t-output",
         "t-warning", "t-note", "check", "spinner", "section-label", "subtitle", "page-head",
+        "icon", "with-icon",
     ];
 
     // Matches the class as a whole selector token, not a substring: `\.panel\b`
@@ -90,7 +93,7 @@ public class StylesheetContractTests
     [InlineData("Slip39Demo.Desktop")]
     public void Host_page_does_not_link_bootstrap(string project)
     {
-        var html = File.ReadAllText(Path.Combine(RepoRoot(), project, "wwwroot", "index.html"));
+        var html = File.ReadAllText(Path.Combine(RepoRootPath(), project, "wwwroot", "index.html"));
         html.Should().NotContainEquivalentOf("bootstrap");
     }
 
@@ -100,7 +103,7 @@ public class StylesheetContractTests
     [Fact]
     public void No_bootstrap_asset_remains_in_the_shared_ui()
     {
-        var lib = Path.Combine(RepoRoot(), "Slip39Demo.UI", "wwwroot", "lib", "bootstrap");
+        var lib = Path.Combine(RepoRootPath(), "Slip39Demo.UI", "wwwroot", "lib", "bootstrap");
         Assert.False(Directory.Exists(lib), $"{lib} still exists");
     }
 
@@ -122,7 +125,7 @@ public class StylesheetContractTests
             @"bg-success|border-success|user-select-all|font-monospace|shadow-sm|sticky-top)(?![\w-])");
 
         var offenders = Directory
-            .EnumerateFiles(Path.Combine(RepoRoot(), "Slip39Demo.UI"), "*.razor", SearchOption.AllDirectories)
+            .EnumerateFiles(Path.Combine(RepoRootPath(), "Slip39Demo.UI"), "*.razor", SearchOption.AllDirectories)
             .SelectMany(f => File.ReadLines(f)
                 .Select((line, i) => (file: Path.GetFileName(f), no: i + 1, line))
                 .Where(x => x.line.Contains("class=") && pattern.IsMatch(x.line))

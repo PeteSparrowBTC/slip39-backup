@@ -1,8 +1,9 @@
 @page "/"
+@using Slip39Demo.UI.Shared
 
 <PageTitle>SLIP-39 + age wallet backup</PageTitle>
 
-<h1>🔐 SLIP-39 + age wallet backup</h1>
+<h1 class="with-icon"><Icon Name="lock" /> SLIP-39 + age wallet backup</h1>
 <p class="subtitle">
     Secure your BIP-39 wallet with threshold secret-sharing and age encryption.
     Every operation runs on this machine; nothing is sent anywhere.
@@ -11,7 +12,7 @@
 <div class="split">
     <div class="panel">
         <div class="panel-body">
-            <h2>📤 Create backup</h2>
+            <h2 class="with-icon"><Icon Name="backup" /> Create backup</h2>
             <p class="hint">
                 Enter your seed words, choose a threshold, and the tool produces a single
                 dated backup zip containing your SLIP-39 share folders and the
@@ -23,7 +24,7 @@
 
     <div class="panel">
         <div class="panel-body">
-            <h2>📥 Recover wallet</h2>
+            <h2 class="with-icon"><Icon Name="recover" /> Recover wallet</h2>
             <p class="hint">
                 Gather threshold-many SLIP-39 mnemonics and the <code>payload.age</code>
                 ciphertext, then reconstruct your seed words and passphrase here.
