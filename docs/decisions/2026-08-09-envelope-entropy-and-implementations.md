@@ -139,29 +139,64 @@ Do not password-protect the **output bundle** either: it holds share files meant
 to be separated, and a memorable password reintroduces the human-chosen secret
 this design eliminated.
 
-## 8. Dice entropy for K: 50 rolls, not 99
+## 8. Dice entropy for K: superseded, and the XOR rule is retired
 
-If dice entropy is added, the target is 50 rolls of a six-sided die, not 99.
+This section originally specified a dice feature for this repository: 50 rolls,
+and `K = SHA256(rolls) XOR RandomNumberGenerator.GetBytes(32)` under the heading
+"combine, never replace". **Both of those numbers and that formula are withdrawn.**
+The feature was built in a separate tool,
+[dice-to-seed](https://github.com/PeteSparrowBTC/dice-to-seed), and building it
+settled two questions differently.
 
-**Why.** 50 rolls give 129 bits. That matches a 12-word seed's 128 bits and age's
-128-bit file key, which is the brute-force floor of the whole system. Entropy
-beyond that is unusable: an attacker takes the 128-bit file key route regardless.
-This holds for 24-word seeds too, so the roll count does not scale with seed
-length.
+**The XOR combine was considered there and dropped, on grounds.** Mixing a
+generated value into K hedges against a biased or observed die, but it costs the
+one property the design will not give up: that a value can be recomputed and
+checked against an independent implementation, by its owner and by anyone else.
+An XOR'd K is checkable by nobody. So K is the dice and nothing else:
 
-**Combine, never replace:** `K = SHA256(rolls) XOR RandomNumberGenerator.GetBytes(32)`.
-If either source is sound the key is sound. Replacing the RNG with dice would
-swap one single point of failure for another.
+```
+k = SHA-256(the roll digits, joined by nothing)
+```
 
-**Never reuse the seed's rolls for K.** Shared entropy makes the dice record a
-single artifact that reconstructs both layers, which is exactly the single point
-of failure the threshold scheme removes. One sitting is fine if the halves are
-disjoint (rolls 1 to 50 for the seed, 51 to 100 for K) and the record is
-destroyed afterwards.
+which stays verifiable with one shell command, `printf '%s' "$ROLLS" | sha256sum`.
+See `DiceToSeed.Core/BackupKey.cs`, which records the rejected alternative next to
+the chosen one.
 
-**It must show its work.** A dice feature that cannot be audited produces
-confidence without substance: display the hash of the rolls, the system bytes and
-the resulting K, so the user can recompute the XOR and confirm the dice went in.
+**Bias is handled by rolling past the minimum, not by mixing.** 50 rolls give 129
+bits only on the ideal-die measure. dice-to-seed asks for 60, which clears 128
+bits on the conservative measure instead, and that is the number to use.
+
+**Two rules from the original section survive unchanged**, because dice-to-seed
+honours both:
+
+- **Never reuse the seed's rolls for K.** Shared entropy makes the dice record a
+  single artifact that reconstructs both layers, which is exactly the single point
+  of failure the threshold scheme removes. One sitting is fine if the halves are
+  disjoint and the record is destroyed afterwards.
+- **It must show its work.** A dice feature that cannot be audited produces
+  confidence without substance, so the hash of the rolls and the resulting K are
+  both displayed.
+
+**This tool now consumes such a key.** The Owner page takes 64 hex characters and
+the four-character check code that dice-to-seed prints, and uses that as K instead
+of calling the generator. The check code is required whenever a key is entered: a
+key with nothing catching a transcription slip is a key that fails at recovery,
+years later, with nobody able to say why.
+
+**And it discharges the obligation dice-to-seed delegates to it.** That comment
+says the roll log must never be the one used for a seed, and that the consuming
+tool enforces the rest by comparing K against the seed it was given. If one log
+produced both, K *is* the wallet's BIP-39 entropy, so the key becomes derivable
+from the wallet it protects and the threshold scheme stops protecting anything.
+This tool recovers checksum-verified BIP-39 entropy from every non-blank seed in
+the form, top-level and per-cosigner, and refuses to generate when K's leading
+bytes match any of them. It also refuses when a seed cannot be read as BIP-39 at
+all, because a comparison that did not happen must not be reported as one that
+passed.
+
+The reason section 8 is rewritten rather than deleted: an unqualified "combine,
+never replace" is advice somebody would follow, and the argument against it is the
+useful part.
 
 ## 9. Where the real risk sits
 
