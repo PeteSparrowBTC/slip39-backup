@@ -93,4 +93,43 @@ public class StylesheetContractTests
         var html = File.ReadAllText(Path.Combine(RepoRoot(), project, "wwwroot", "index.html"));
         html.Should().NotContainEquivalentOf("bootstrap");
     }
+
+    // The point of the exercise. An offline tool should ship what a reviewer can
+    // read before putting it on a USB stick, and 400 KB of framework that nothing
+    // references is not that.
+    [Fact]
+    public void No_bootstrap_asset_remains_in_the_shared_ui()
+    {
+        var lib = Path.Combine(RepoRoot(), "Slip39Demo.UI", "wwwroot", "lib", "bootstrap");
+        Assert.False(Directory.Exists(lib), $"{lib} still exists");
+    }
+
+    // Catches a Bootstrap class left behind in markup, which would silently do
+    // nothing now that the framework is gone.
+    //
+    // The boundaries are (?<![\w-]) and (?![\w-]), not \b, and that is load-bearing.
+    // \b treats a hyphen as a boundary, so \brow\b matches the "row" inside the
+    // legitimate new class "row-between" and fails the build on correct code. The
+    // same trap cost a round in Task 1 with .panel and .panel-header.
+    [Fact]
+    public void No_razor_file_uses_a_bootstrap_class()
+    {
+        var pattern = new Regex(
+            @"(?<![\w-])(card|card-header|card-body|card-title|card-text|alert|alert-[a-z]+|" +
+            @"btn-outline-[a-z]+|btn-secondary|btn-success|btn-info|form-control|form-label|" +
+            @"form-check|form-check-input|form-check-label|form-text|row|col-[a-z0-9-]+|" +
+            @"spinner-border|text-muted|text-white|text-info|text-secondary|bg-dark|bg-light|" +
+            @"bg-success|border-success|user-select-all|font-monospace|shadow-sm|sticky-top)(?![\w-])");
+
+        var offenders = Directory
+            .EnumerateFiles(Path.Combine(RepoRoot(), "Slip39Demo.UI"), "*.razor", SearchOption.AllDirectories)
+            .SelectMany(f => File.ReadLines(f)
+                .Select((line, i) => (file: Path.GetFileName(f), no: i + 1, line))
+                .Where(x => x.line.Contains("class=") && pattern.IsMatch(x.line))
+                .Select(x => $"{x.file}:{x.no}"))
+            .ToArray();
+
+        Assert.True(offenders.Length == 0,
+            $"Bootstrap classes remain: {string.Join(", ", offenders)}");
+    }
 }
