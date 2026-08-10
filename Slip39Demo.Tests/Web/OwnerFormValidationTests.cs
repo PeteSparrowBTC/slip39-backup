@@ -17,6 +17,15 @@ namespace Slip39Demo.Tests.Web;
 // browser and is exercised by the Playwright end-to-end pass instead.
 public class OwnerFormValidationTests : TestContext
 {
+    // Selects Owner's own top-level seed field by its placeholder text rather than
+    // a CSS class. CosignerEditor's own seed input uses a different (truncated)
+    // placeholder, so this stays unambiguous across a restyle: a class-based
+    // selector (input.font-monospace, later input.input-mono) breaks the moment
+    // both inputs share the same class, which is exactly what happened here and
+    // what Task 7 (CosignerEditor's own migration) will do again.
+    const string TopLevelSeedSelector =
+        "input[placeholder='abandon ability able about above absent absorb abstract absurd abuse access accident']";
+
     public OwnerFormValidationTests()
     {
         // Defaults: verification passes, machine is OFFLINE. Individual tests
@@ -96,7 +105,7 @@ public class OwnerFormValidationTests : TestContext
         Services.AddSingleton<IIndependentVerifier>(verifier);
 
         var cut = RenderComponent<Owner>();
-        cut.FindAll("input.input-mono").First()
+        cut.FindAll(TopLevelSeedSelector).First()
             .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
         cut.Find("button.btn-primary").Click();
 
@@ -122,7 +131,7 @@ public class OwnerFormValidationTests : TestContext
             new FakeVerifier(Result.Failure("subset 1 recovered a DIFFERENT key")));
 
         var cut = RenderComponent<Owner>();
-        cut.FindAll("input.input-mono").First()
+        cut.FindAll(TopLevelSeedSelector).First()
             .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
         cut.Find("button.btn-primary").Click();
 
@@ -145,7 +154,7 @@ public class OwnerFormValidationTests : TestContext
         Services.AddSingleton<IIndependentVerifier>(verifier);
 
         var cut = RenderComponent<Owner>();
-        cut.FindAll("input.input-mono").First()
+        cut.FindAll(TopLevelSeedSelector).First()
             .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
         cut.Find("button.btn-primary").Click();
 
@@ -174,9 +183,9 @@ public class OwnerFormValidationTests : TestContext
 
         var cut = RenderComponent<Owner>();
 
-        // First monospace input is the top-level seed (cosigner seed/derivation inputs
-        // come later in the DOM).
-        cut.FindAll("input.input-mono").First()
+        // TopLevelSeedSelector targets Owner's own top-level seed field specifically
+        // (cosigner seed/derivation inputs have a different placeholder).
+        cut.FindAll(TopLevelSeedSelector).First()
             .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
 
         cut.WaitForAssertion(() =>
@@ -197,7 +206,7 @@ public class OwnerFormValidationTests : TestContext
         Services.AddSingleton<IFileDownloader>(downloader);
 
         var cut = RenderComponent<Owner>();
-        cut.FindAll("input.input-mono").First()
+        cut.FindAll(TopLevelSeedSelector).First()
             .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
 
         // Add a second cosigner (identical to the first: no own seed, no passphrase, same path).
@@ -223,7 +232,7 @@ public class OwnerFormValidationTests : TestContext
         Services.AddSingleton<IFileDownloader>(downloader);
 
         var cut = RenderComponent<Owner>();
-        cut.FindAll("input.input-mono").First()
+        cut.FindAll(TopLevelSeedSelector).First()
             .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
         cut.FindAll("button").First(b => b.TextContent.Contains("Add cosigner")).Click();
 
@@ -269,11 +278,10 @@ public class OwnerFormValidationTests : TestContext
 
         var cut = RenderComponent<Owner>();
 
-        // The top-level seed words input is the first input with the
-        // input-mono class on the page (the cosigner editors' own seed/derivation
-        // inputs still carry the old font-monospace class until they are migrated,
-        // so they do not collide with this selector).
-        var seedInput = cut.FindAll("input.input-mono").First();
+        // TopLevelSeedSelector targets Owner's own top-level seed field by
+        // placeholder text, so it stays correct regardless of which CSS class
+        // either this field or a cosigner's own seed field carries.
+        var seedInput = cut.FindAll(TopLevelSeedSelector).First();
         seedInput.Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
 
         AttestOffline(cut); // offline probe landed + attestation ticked → clean backup
@@ -300,7 +308,7 @@ public class OwnerFormValidationTests : TestContext
         Services.AddSingleton<IFileDownloader>(downloader);
 
         var cut = RenderComponent<Owner>();
-        cut.FindAll("input.input-mono").First()
+        cut.FindAll(TopLevelSeedSelector).First()
             .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
         AttestOffline(cut, attest: false);
 
@@ -323,7 +331,7 @@ public class OwnerFormValidationTests : TestContext
         Services.AddSingleton<IConnectivityProbe>(new FakeProbe(online: true));
 
         var cut = RenderComponent<Owner>();
-        cut.FindAll("input.input-mono").First()
+        cut.FindAll(TopLevelSeedSelector).First()
             .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("ONLINE"),

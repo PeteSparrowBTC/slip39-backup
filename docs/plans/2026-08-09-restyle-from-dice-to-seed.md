@@ -835,8 +835,15 @@ git commit -m "Restyle the landing page"
 - Modify: `Slip39Demo.UI/Pages/Owner.razor` lines 17 to 177 only
 
 **Interfaces:**
-- Consumes: `panel`, `panel-header`, `panel-body`, `split`, `split-sticky`, `field`, `field-label`, `input`, `input-mono`, `banner`, `banner-warn`, `banner-loud`, `check`, `btn`, `btn-primary`, `btn-sm`, `btn-block`, `transcript`, `t-command`, `t-output`, `t-warning`, `t-note`, `page-head`, `section-label`, `hint`, `spinner` from Task 1.
+- Consumes: `panel`, `panel-header`, `panel-body`, `split`, `split-sticky`, `field`, `field-label`, `input`, `input-mono`, `banner`, `banner-ok`, `banner-warn`, `banner-loud`, `check`, `btn`, `btn-primary`, `btn-sm`, `btn-block`, `transcript`, `t-command`, `t-output`, `t-warning`, `t-note`, `page-head`, `section-label`, `hint`, `spinner` from Task 1.
 - Produces: nothing.
+
+**Expect to touch `Slip39Demo.Tests/Web/OwnerFormValidationTests.cs` as well.** It selects
+elements by the Bootstrap classes this task renames, so it will fail until its selectors
+follow. Select by something the restyle cannot move: the input's unique `placeholder`, as
+that file already does elsewhere. Do not select by CSS class. A class-based selector here
+silently resolved to a cosigner's input instead of the page's own once the classes diverged,
+and it would break again the moment Task 7 migrates `CosignerEditor`.
 
 **Do not touch lines 179 to 495.** That is the `@code` block, and this PR changes no behaviour.
 
