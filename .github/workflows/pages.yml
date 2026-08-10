@@ -93,19 +93,68 @@ jobs:
             dotnet publish Slip39Demo.Web -c Release -o publish
           fi
 
-      # Nothing this repository wrote may point at an outside origin: the app has to load
-      # with the network disconnected. _framework is excluded because it is the .NET
-      # WebAssembly runtime rather than our code, and it contains strings that look like
-      # URLs and are never fetched. The repository link on the landing page is allowed:
-      # it is an anchor a reader may click on another machine, not a fetch.
-      - name: Check the published app for external references
+      # The app must not DEPEND on an external origin in order to load or work. That is a
+      # different claim from "contains no external URL", and the first version of this step
+      # asserted the second one, failed, and was wrong to. It was copied from a sibling
+      # repository that has no connectivity probe.
+      #
+      # This app genuinely contains external URLs, and each is deliberate:
+      #
+      #   connectivity.js reaches gstatic, cloudflare-dns and google on purpose. That
+      #   outbound request IS the airgap detector: the banner telling somebody not to type
+      #   a seed on a connected machine works by trying to reach the internet and noting
+      #   whether it succeeded. Forbidding those URLs would delete a safety feature.
+      #
+      #   independent-verify.min.js carries BSD licence and author URLs in comments. It is
+      #   vendored third-party code (built from tools/independent-verify) and the URLs are
+      #   never fetched.
+      #
+      #   _framework is the .NET WebAssembly runtime, not our code: aka.ms appears in
+      #   exception text and w3.org as XML namespace identifiers.
+      #
+      # So the allowlist is by exact URL and exact path, not by pattern, and anything new
+      # fails the build. A fourth probe endpoint appearing in connectivity.js should be a
+      # decision somebody makes on purpose, not something that slips in.
+      # Matching is per URL, not per line, and that distinction is load-bearing. A
+      # line-filtering version of this check passed a deliberately planted
+      # https://example.net/probe because it sat on the same line as an allowed endpoint,
+      # and dropping the line hid it. Every URL is therefore extracted first and judged on
+      # its own.
+      - name: Check the published app depends on no external origin
         run: |
-          if grep -rIEn "https?://" publish/wwwroot --exclude-dir=_framework \
-               | grep -vE "127\.0\.0\.1|localhost|github\.com/PeteSparrowBTC"; then
-            echo "::error::The published app references an external origin."
+          set -euo pipefail
+
+          # The probe endpoints, pinned exactly. Keep in step with
+          # Slip39Demo.Web/wwwroot/connectivity.js. A new one here is a deliberate change.
+          ALLOWED='^https://www\.gstatic\.com/generate_204$'
+          ALLOWED="$ALLOWED"'|^https://cloudflare-dns\.com/dns-query\?name=example\.com$'
+          ALLOWED="$ALLOWED"'|^https://www\.google\.com/generate_204$'
+          # Loopback: the app's own instructions tell a user to serve it locally.
+          ALLOWED="$ALLOWED"'|^https?://(127\.0\.0\.1|localhost)(:[0-9]+)?(/|$)'
+          # The repository link on the landing page: an anchor to click on another machine.
+          ALLOWED="$ALLOWED"'|^https://github\.com/PeteSparrowBTC(/|$)'
+          # XML namespace identifiers, which are names rather than addresses to fetch.
+          ALLOWED="$ALLOWED"'|^https?://(www\.)?w3\.org/(2000/svg|1999/xhtml|1999/xlink)'
+
+          urls=$(grep -rIhoE "https?://[^\"'\''[:space:])>]+" publish/wwwroot \
+                   --exclude-dir=_framework \
+                   --exclude=independent-verify.min.js \
+                 | sed 's/[.,;]*$//' | sort -u || true)
+
+          offenders=$(printf '%s\n' "$urls" | grep -vE "$ALLOWED" | grep -v '^$' || true)
+
+          if [ -n "$offenders" ]; then
+            echo "Not on the allowlist:"
+            printf '%s\n' "$offenders" | while read -r url; do
+              echo "  $url"
+              grep -rIn --fixed-strings "$url" publish/wwwroot \
+                --exclude-dir=_framework --exclude=independent-verify.min.js \
+                | sed 's/^/      /' || true
+            done
+            echo "::error::The published app references an external origin that is not on the allowlist. If it is deliberate, add it to this step and say why it is safe."
             exit 1
           fi
-          echo "No external references."
+          echo "No external dependency beyond the pinned connectivity probe."
 
       # GitHub Pages serves this repository under /slip39-backup/, so the base href has
       # to match or every asset resolves to the wrong path and 404s.
