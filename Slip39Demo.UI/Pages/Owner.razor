@@ -89,18 +89,20 @@
                     </div>
                 </div>
 
-                @* Live account of what Generate will use, so the state is never a surprise
-                   at the moment of clicking. A refusal here is the same refusal Generate
-                   would report, shown early. *@
+                @* Live account of what Generate will use, so the state is never a surprise at
+                   the moment of clicking. A refusal here is the same refusal Generate would
+                   report, from the same function, shown early.
+
+                   Two presentations and no third: a state that will refuse gets banner-loud,
+                   the same treatment every other blocking condition on this page gets, and a
+                   state that will proceed gets a hint. There is deliberately no middle
+                   rendering, because a caveat styled as body text beside a key field reads as
+                   advice, and nothing here is advice. *@
                 @foreach (var note in BackupKeyNotes())
                 {
-                    @if (note.Severity == "bad")
+                    @if (note.Refuses)
                     {
                         <div class="banner banner-loud">@note.Message</div>
-                    }
-                    else if (note.Severity == "warn")
-                    {
-                        <p class="hint-loud">@note.Message</p>
                     }
                     else
                     {
@@ -216,7 +218,17 @@
 
                         @* Which key wrapped this backup is a fact worth recording where the
                            owner can see it, so the source is named. The key itself is never
-                           shown: it appears only in the field it was typed into. *@
+                           shown: it appears only in the field it was typed into.
+
+                           The Pasted wording claims the seed comparison actually happened, and
+                           that claim holds by construction rather than by hope. Reaching this
+                           panel means TryBuild passed three gates in order: at least one
+                           non-blank seed exists, every non-blank seed read as BIP-39 (an
+                           unreadable one refuses), and none of them matched the key. So the
+                           number of seeds compared is at least one whenever this line renders.
+                           This panel is the record the owner keeps after the live state is
+                           gone, so a sentence here that could be false would be worse than no
+                           sentence. *@
                         <div class="field">
                             <span class="field-label">Backup key</span>
                             <p class="hint">
@@ -536,9 +548,10 @@
     IEnumerable<string?> SeedWordsInForm() =>
         model.Cosigners.Select(c => c.SeedWords).Prepend(model.TopLevelSeedWords);
 
-    // Severity drives presentation only: "bad" is a state that will refuse generation,
-    // "warn" is a caveat about what the check could not cover, "ok" is what will happen.
-    sealed record BackupKeyNote(string Severity, string Message);
+    // Refuses is the whole distinction: either this state stops generation or it describes
+    // what generation will do. Nothing in between, so nothing that blocks can be styled as
+    // if it were a note.
+    sealed record BackupKeyNote(bool Refuses, string Message);
 
     // The live account of k's origin. Deliberately reports the same refusals Generate
     // would, computed from the same functions, so the panel cannot drift from the decision.
@@ -550,39 +563,26 @@
     IReadOnlyList<BackupKeyNote> BackupKeyNotes()
     {
         if (!BackupKeyEntry.IsSupplied(model.BackupKeyHex, model.BackupKeyCheckCode))
-            return [new BackupKeyNote("ok",
+            return [new BackupKeyNote(false,
                 "Both fields empty. Generate will create the key with this machine's random "
                 + "number generator.")];
 
         var read = BackupKeyEntry.Read(model.BackupKeyHex, model.BackupKeyCheckCode);
         if (read.IsFailure)
-            return [new BackupKeyNote("bad", read.Error)];
+            return [new BackupKeyNote(true, read.Error)];
 
         var scan = BackupKeyEntry.ScanForSeedCollision(read.Value, SeedWordsInForm());
         if (scan.IsFailure)
-            return [new BackupKeyNote("bad", scan.Error)];
+            return [new BackupKeyNote(true, scan.Error)];
 
-        var notes = new List<BackupKeyNote>
-        {
-            new("ok",
-                "Check code matches. Generate will split this key instead of a generated one"
-                + (scan.Value.Compared == 0
-                    ? ", and no seed words in this form could be compared against it yet."
-                    : $", and it is not the BIP-39 entropy of "
-                      + (scan.Value.Compared == 1 ? "the seed" : $"any of the {scan.Value.Compared} seeds")
-                      + " in this form.")),
-        };
-
-        // Said out loud rather than left implicit: a collision check that silently covered
-        // nothing reads exactly like one that passed.
-        if (scan.Value.Unreadable > 0)
-            notes.Add(new BackupKeyNote("warn",
-                $"{scan.Value.Unreadable} of the seeds in this form could not be read as BIP-39 "
-                + "(a word not on the list, a bad checksum, or a non-standard word count), so "
-                + "this key could not be compared against them. Generation is still allowed, "
-                + "because this tool has never required the seed words to validate."));
-
-        return notes;
+        return [new BackupKeyNote(false,
+            "Check code matches. Generate will split this key instead of a generated one"
+            + (scan.Value.Compared == 0
+                ? ". No seed words have been entered yet, so nothing has been compared against "
+                  + "it; generation needs a seed anyway."
+                : ", and it is not the BIP-39 entropy of "
+                  + (scan.Value.Compared == 1 ? "the seed" : $"any of the {scan.Value.Compared} seeds")
+                  + " in this form."))];
     }
 
     // Builds the download filename: "slip39-wallet-backup" (what it is) + an

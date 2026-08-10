@@ -23,12 +23,11 @@ public enum BackupKeySource
 // be able to read afterwards. The key itself never reaches the transcript or the panel.
 public sealed record BackupKeyChoice(byte[] Key, BackupKeySource Source);
 
-// What the collision scan looked at. Compared is the number of distinct mnemonics whose
-// entropy was recovered and compared against k; Unreadable is the number that could not
-// be read as BIP-39 at all (wrong word count, unknown word, bad checksum) and therefore
-// could not be compared. Unreadable > 0 is not a refusal, but the UI says so, because a
-// check that silently covered nothing is worse than no check.
-public sealed record SeedCollisionScan(int Compared, int Unreadable);
+// What the collision scan covered: the number of distinct mnemonics whose entropy was
+// recovered and compared against k. There is no count of what could not be read, because
+// a seed that cannot be read is a refusal (see ScanForSeedCollision), so on success this
+// number is every non-blank seed the form held.
+public sealed record SeedCollisionScan(int Compared);
 
 // Accepting a backup key the user pasted instead of generating one.
 //
@@ -67,6 +66,18 @@ public sealed record SeedCollisionScan(int Compared, int Unreadable);
 // BIP-39 entropy of the seed words in the form, and generation is REFUSED on a match.
 // Refusing is right and a warning would not be, because the resulting backup is worthless
 // and nothing about it looks wrong.
+//
+// A seed the tool cannot read as BIP-39 is refused for the same reason, and the first
+// version of this file got that wrong. It warned instead, on the argument that refusing
+// "would change what generation accepts for every user who pastes no key". It would not:
+// this scan is reached only behind the IsSupplied guard, so a refusal here can only ever
+// reach somebody who pasted a key, and that population was never protected by the warning.
+// What the warning did instead was ship the exact break above. Change one word of a
+// 12-word seed for another listed word and the checksum fails, the seed becomes unreadable,
+// the collision check silently covers nothing, and the tool hands out a backup whose key is
+// the first 16 bytes of the wallet's own entropy. A typo in the seed field is how somebody
+// reaches that, and the words look right on screen. So an unreadable seed stops generation
+// and asks for the words to be corrected or cleared.
 //
 // AN HONESTY CONSTRAINT, also stated by dice-to-seed
 // Dice for k do not remove trust in a random number generator, and nothing here may claim
@@ -189,6 +200,9 @@ public static class BackupKeyEntry
             .Select(entropy => entropy.Value.Length)
             .FirstOrDefault(0);
 
+        // Reported before the unreadable case below, because it is the more specific finding:
+        // if one seed collides and another is unreadable, the collision is what the user needs
+        // to hear first.
         if (collidingLength > 0)
             return Result.Failure<SeedCollisionScan>(
                 Refused + $"its first {collidingLength} bytes are exactly the {collidingLength} "
@@ -198,9 +212,25 @@ public static class BackupKeyEntry
                 + "would protect nothing. Roll a fresh log for the key and paste that instead. "
                 + "Nothing was generated.");
 
-        return new SeedCollisionScan(
-            Compared: entropies.Count(entropy => entropy.IsSuccess),
-            Unreadable: entropies.Count(entropy => entropy.IsFailure));
+        // A seed that will not read as BIP-39 cannot be compared, and a collision check that
+        // covered nothing looks exactly like one that passed. One changed word in a valid
+        // mnemonic reaches this state, and the key it would let through is the wallet's own
+        // entropy, so this refuses rather than notes.
+        var unreadable = entropies.Count(entropy => entropy.IsFailure);
+        if (unreadable > 0)
+            return Result.Failure<SeedCollisionScan>(
+                Refused + $"{unreadable} of the seeds in this form "
+                + (unreadable == 1 ? "does" : "do")
+                + " not read as BIP-39 (a word not on the English list, a word count that is not "
+                + "12, 15, 18, 21 or 24, or a checksum that does not match), so this key could "
+                + "not be compared against "
+                + (unreadable == 1 ? "it" : "them")
+                + ". That comparison is the one thing standing between a reused dice roll log "
+                + "and a backup key that can be recomputed from the wallet it protects, so it is "
+                + "not skipped. Correct or clear those words, then paste the key again. Nothing "
+                + "was generated.");
+
+        return new SeedCollisionScan(Compared: entropies.Count);
     }
 
     // The single entry point the page uses. Nothing typed means the generator, exactly as

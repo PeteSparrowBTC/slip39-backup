@@ -277,15 +277,87 @@ public class OwnerBackupKeyTests : TestContext
         downloader.Calls.Should().BeEmpty();
     }
 
-    // Seed words the tool cannot read as BIP-39 have always been accepted, so they still
-    // are; what changes is that the page says the key could not be compared against them.
+    // Seed words the tool cannot read as BIP-39 refuse a pasted key, because the comparison
+    // that would have caught a reused roll log cannot run against them. Nothing changes for
+    // a user who pastes no key: this only fires when a key is supplied.
     [Fact]
-    public void Seed_words_that_are_not_valid_bip39_are_reported_as_uncompared()
+    public void Seed_words_that_are_not_valid_bip39_refuse_a_pasted_key()
+    {
+        var downloader = RenderWith(out var cut, "not a valid mnemonic", DiceKeyHex, DiceCheckCode);
+
+        cut.FindAll(".banner-loud").Should()
+            .Contain(el => el.TextContent.Contains("does not read as BIP-39"));
+
+        cut.Find("button.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.FindAll(".banner-loud").Should()
+                .Contain(el => el.TextContent.Contains("Correct or clear those words"));
+        }, timeout: TimeSpan.FromSeconds(10));
+
+        downloader.Calls.Should().BeEmpty();
+    }
+
+    // THE CASE THAT WAS SILENTLY ACCEPTED. One word of a valid 12-word seed changed, "fit"
+    // to "fix": both are on the English list, so only the checksum objects, and the words
+    // look right on screen. That seed is the same roll log as the pasted key, whose first 16
+    // bytes are its entropy, so the earlier build shipped a backup whose key is derivable
+    // from the wallet it protects.
+    [Fact]
+    public void A_seed_with_one_word_mistyped_refuses_and_downloads_nothing()
+    {
+        var downloader = RenderWith(
+            out var cut,
+            "diet glad hat rural panther lawsuit act drop gallery urge where fix",
+            DiceKeyHex, DiceCheckCode);
+
+        cut.Find("button.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.FindAll(".banner-loud").Should()
+                .Contain(el => el.TextContent.Contains("Backup key REFUSED")
+                               && el.TextContent.Contains("not read as BIP-39"));
+        }, timeout: TimeSpan.FromSeconds(10));
+
+        downloader.Calls.Should().BeEmpty();
+    }
+
+    // A state that blocks generation is never rendered as body text. hint-loud is how this
+    // page notes a caveat; a refusal must look like every other blocking condition, which is
+    // banner-loud.
+    [Fact]
+    public void A_refusing_state_is_never_presented_as_a_mere_note()
     {
         RenderWith(out var cut, "not a valid mnemonic", DiceKeyHex, DiceCheckCode);
 
-        cut.Markup.Should().Contain("could not be read as BIP-39");
-        cut.FindAll(".banner-loud").Should().BeEmpty();
+        cut.FindAll(".hint-loud").Should().BeEmpty();
+        cut.FindAll(".banner-loud").Should().NotBeEmpty();
+    }
+
+    // The result panel's claim that the key was checked against the seed words must not be
+    // reachable without a seed having been checked. Generation with no seed at all stops at
+    // the seed gate, so the panel never renders.
+    [Fact]
+    public void A_pasted_key_with_no_seed_at_all_stops_at_the_seed_gate()
+    {
+        var downloader = new NoopDownloader();
+        Services.AddSingleton<IFileDownloader>(downloader);
+
+        var cut = RenderComponent<Owner>();
+        cut.FindAll(KeyFieldSelector).First().Change(DiceKeyHex);
+        cut.FindAll(CheckFieldSelector).First().Change(DiceCheckCode);
+
+        cut.Find("button.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.Should().Contain("At least one seed must be provided");
+        }, timeout: TimeSpan.FromSeconds(10));
+
+        cut.Markup.Should().NotContain("Entered by you");
+        downloader.Calls.Should().BeEmpty();
     }
 
     // Nothing on the page may repeat the key back except the field it was typed into, and

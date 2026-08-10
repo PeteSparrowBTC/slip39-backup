@@ -6,7 +6,7 @@ using CSharpFunctionalExtensions;
 namespace Slip39Demo.Core.Bip39;
 
 // The BIP-39 English wordlist, embedded in this assembly and verified against its
-// published SHA-256 every time it is loaded.
+// published SHA-256 the first time it is loaded in a process.
 //
 // WHY IT IS HERE AT ALL
 // Nothing else in this repository can supply it. BouncyCastle has no BIP-39, and
@@ -53,10 +53,27 @@ public sealed class Bip39WordList
     // The hash of the embedded bytes, so a caller can show it rather than assert it.
     public string Sha256Hex { get; }
 
-    // Loads and verifies the list. A failure here means nothing may be derived, so it
-    // comes back as a Result for the caller to render rather than as an exception: a
-    // corrupted resource is a state the user needs explained, not a stack trace.
-    public static Result<Bip39WordList> Load()
+    // Loaded and verified once per process, then reused.
+    //
+    // WHY CACHING IS SOUND HERE
+    // The bytes are a manifest resource of an assembly that is already loaded, so they
+    // cannot change while the process runs: hashing them again would re-answer a question
+    // whose answer cannot have moved. What it would cost is real, because the callers are
+    // interactive. ScanForSeedCollision loads the list, and the Owner page's live state
+    // calls it on every render, so without this every keystroke-driven re-render hashed
+    // 13 KB and rebuilt a 2048-entry dictionary, next to the PBKDF2 cost that already
+    // decided that page's fields bind on change rather than on input.
+    //
+    // Lazy<T> is used for its default thread-safe mode: two callers racing on the first
+    // load get one verification and the same instance.
+    static readonly Lazy<Result<Bip39WordList>> Verified = new(LoadAndVerify);
+
+    // A failure here means nothing may be derived, so it comes back as a Result for the
+    // caller to render rather than as an exception: a corrupted resource is a state the
+    // user needs explained, not a stack trace.
+    public static Result<Bip39WordList> Load() => Verified.Value;
+
+    static Result<Bip39WordList> LoadAndVerify()
     {
         var bytes = ReadEmbeddedBytes();
 

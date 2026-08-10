@@ -216,6 +216,34 @@ public class BackupKeyEntryTests
         choice.Error.Should().Contain("REFUSED");
     }
 
+    // The three lengths between the two extremes, so the single prefix rule is pinned at all
+    // five sizes rather than at the two that are easy to reason about. Each key below is the
+    // all-zeros entropy of the mnemonic beside it, padded with 0xff so the tail is not zero
+    // and the match can only be the prefix the rule compares.
+    [Theory]
+    // 15 words, 20 bytes of entropy.
+    [InlineData("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon "
+        + "abandon abandon abandon address",
+        "0000000000000000000000000000000000000000ffffffffffffffffffffffff", "2169", 20)]
+    // 18 words, 24 bytes.
+    [InlineData("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon "
+        + "abandon abandon abandon abandon abandon abandon agent",
+        "000000000000000000000000000000000000000000000000ffffffffffffffff", "5ddd", 24)]
+    // 21 words, 28 bytes.
+    [InlineData("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon "
+        + "abandon abandon abandon abandon abandon abandon abandon abandon abandon admit",
+        "00000000000000000000000000000000000000000000000000000000ffffffff", "6622", 28)]
+    public void The_collision_rule_covers_the_middle_three_lengths_too(
+        string seedWords, string keyHex, string check, int matchingBytes)
+    {
+        BackupKeyEntry.CheckCodeFor(keyHex).Should().Be(check);
+
+        var choice = BackupKeyEntry.Resolve(keyHex, check, [seedWords]);
+
+        choice.IsFailure.Should().BeTrue();
+        choice.Error.Should().Contain("REFUSED").And.Contain($"first {matchingBytes} bytes");
+    }
+
     [Fact]
     public void A_seed_that_shares_no_prefix_with_the_key_does_not_collide()
     {
@@ -225,26 +253,99 @@ public class BackupKeyEntryTests
 
         scan.IsSuccess.Should().BeTrue(scan.IsFailure ? scan.Error : "");
         scan.Value.Compared.Should().Be(2);
-        scan.Value.Unreadable.Should().Be(0);
     }
 
-    // A seed the form holds but BIP-39 cannot read (a word missing, a bad checksum, a
-    // non-standard length) cannot be compared, so it is counted and reported rather than
-    // treated as if it had passed. Not a refusal: this tool has never required the seed
-    // words in the form to be valid BIP-39, and starting to would change what generation
-    // accepts for every user who pastes no key at all.
+    // THE CASE THE FIRST VERSION OF THIS FILE SHIPPED. These twelve words are the 12-word
+    // seed of the same roll log as KeyOfFiftyOnes with one word changed, "fit" to "fix". Both
+    // are on the English list, so the words look right and only the checksum objects. The
+    // seed therefore cannot be read, the collision check covers nothing, and the earlier code
+    // returned Success: the tool would have handed out a backup whose key is the first 16
+    // bytes of that wallet's own entropy. A typo in the seed field is all it takes.
     [Fact]
-    public void A_seed_that_cannot_be_read_as_bip39_is_counted_as_uncompared()
+    public void A_seed_with_one_word_mistyped_refuses_rather_than_going_uncompared()
+    {
+        var choice = BackupKeyEntry.Resolve(
+            KeyOfFiftyOnes, CheckOfFiftyOnes,
+            ["diet glad hat rural panther lawsuit act drop gallery urge where fix"]);
+
+        choice.IsFailure.Should().BeTrue();
+        choice.Error.Should().Contain("REFUSED")
+            .And.Contain("does not read as BIP-39")
+            .And.Contain("Correct or clear those words")
+            .And.Contain("Nothing was generated");
+    }
+
+    // And the corrected spelling of that same seed is a real collision, which is what the
+    // refusal above was standing in front of.
+    [Fact]
+    public void The_corrected_spelling_of_that_seed_is_an_outright_collision()
+    {
+        var choice = BackupKeyEntry.Resolve(
+            KeyOfFiftyOnes, CheckOfFiftyOnes,
+            ["diet glad hat rural panther lawsuit act drop gallery urge where fit"]);
+
+        choice.IsFailure.Should().BeTrue();
+        choice.Error.Should().Contain("first 16 bytes");
+    }
+
+    // A seed the form holds but BIP-39 cannot read cannot be compared, so it refuses. This
+    // scan is only ever reached behind the IsSupplied guard, so the refusal can reach nobody
+    // except somebody who pasted a key: the earlier argument that this would change what
+    // generation accepts for users with no key was simply wrong.
+    [Theory]
+    [InlineData("not a real mnemonic at all")]                                                    // word count
+    [InlineData("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon")] // checksum
+    [InlineData("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon zzzz")]    // unknown word
+    public void A_seed_that_cannot_be_read_as_bip39_refuses(string seedWords)
+    {
+        var scan = BackupKeyEntry.ScanForSeedCollision(
+            Convert.FromHexString(KeyOfFiftyOnes), [seedWords]);
+
+        scan.IsFailure.Should().BeTrue();
+        scan.Error.Should().Contain("REFUSED").And.Contain("not read as BIP-39");
+    }
+
+    // The count is named, and the sentence agrees with itself in both numbers.
+    [Fact]
+    public void The_refusal_names_how_many_seeds_could_not_be_read()
+    {
+        var one = BackupKeyEntry.ScanForSeedCollision(
+            Convert.FromHexString(KeyOfFiftyOnes), ["not a real mnemonic at all"]);
+        var two = BackupKeyEntry.ScanForSeedCollision(
+            Convert.FromHexString(KeyOfFiftyOnes),
+            ["not a real mnemonic at all", "also not a mnemonic"]);
+
+        one.Error.Should().Contain("1 of the seeds").And.Contain("does not read");
+        two.Error.Should().Contain("2 of the seeds").And.Contain("do not read");
+    }
+
+    // A collision and an unreadable seed together report the collision, which is the more
+    // specific finding and the one that names what went wrong.
+    [Fact]
+    public void A_collision_outranks_an_unreadable_seed_in_the_message()
+    {
+        var choice = BackupKeyEntry.Resolve(
+            "0000000000000000000000000000000000000000000000000000000000000000",
+            "60e0",
+            ["not a real mnemonic at all", TwentyFourWordZeroSeed]);
+
+        choice.IsFailure.Should().BeTrue();
+        choice.Error.Should().Contain("first 32 bytes");
+    }
+
+    // Whenever Resolve accepts a pasted key alongside any non-blank seed, every one of those
+    // seeds was compared. This is what makes the result panel's "checked against the seed
+    // words in this form" true by construction rather than by hope.
+    [Fact]
+    public void Accepting_a_pasted_key_means_every_non_blank_seed_was_compared()
     {
         var scan = BackupKeyEntry.ScanForSeedCollision(
             Convert.FromHexString(KeyOfFiftyOnes),
-            ["not a real mnemonic at all",
-             "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon",
-             TwentyFourWordZeroSeed]);
+            [TwelveWordZeroSeed, null, "   ", TwentyFourWordZeroSeed,
+             "ozone drill grab fiber curtain grace pudding thank cruise elder eight picnic"]);
 
         scan.IsSuccess.Should().BeTrue(scan.IsFailure ? scan.Error : "");
-        scan.Value.Compared.Should().Be(1);
-        scan.Value.Unreadable.Should().Be(2);
+        scan.Value.Compared.Should().Be(3);
     }
 
     // The same seed typed into the top-level field and copied into a cosigner is one
@@ -259,6 +360,19 @@ public class BackupKeyEntryTests
 
         scan.IsSuccess.Should().BeTrue(scan.IsFailure ? scan.Error : "");
         scan.Value.Compared.Should().Be(1);
+    }
+
+    // No seeds at all is a success with nothing compared, and that is not a hole: the Owner
+    // page refuses generation for want of a seed before it ever resolves a key, so this state
+    // cannot reach a backup. Pinned so a future caller that skips that gate is a visible
+    // change here rather than a silent one.
+    [Fact]
+    public void With_no_seeds_at_all_nothing_is_compared()
+    {
+        var scan = BackupKeyEntry.ScanForSeedCollision(Convert.FromHexString(KeyOfFiftyOnes), NoSeeds);
+
+        scan.IsSuccess.Should().BeTrue(scan.IsFailure ? scan.Error : "");
+        scan.Value.Compared.Should().Be(0);
     }
 
     [Fact]
