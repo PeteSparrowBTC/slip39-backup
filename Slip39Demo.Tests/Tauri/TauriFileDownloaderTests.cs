@@ -38,6 +38,16 @@ public class TauriFileDownloaderTests
     // which crosses the interop boundary as a null string. DownloadAsync must treat
     // that as a completed call, not throw: the caller asked to save and the user said
     // no, which is not a failure the frontend needs to report.
+    //
+    // What this does and does not prove, because a review pointed out the first draft of
+    // this comment claimed more than the test delivers. DownloadAsync discards the returned
+    // path, so there is no null branch to regress and the test cannot fail today whatever
+    // the null handling is. It is a guard against a future edit, not a demonstration that
+    // the current code got something right: if someone later reads the result, to show the
+    // saved path in the UI or to decide the save succeeded, this fails the moment they
+    // dereference it without checking. That is worth keeping and is not worth overstating.
+    // The cancel path as a whole is not covered by any test that runs a dialog, because no
+    // dialog can be opened on the machine this was built on.
     sealed class NullReturningInterop : ITauriInterop
     {
         public ValueTask<T> InvokeAsync<T>(string command, object? args = null) =>

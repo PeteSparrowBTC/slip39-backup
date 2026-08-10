@@ -14,17 +14,22 @@
 // invoke is skipped for local-origin requests to a command with no "plugin:" prefix,
 // unless the app itself has defined an ACL manifest, meaning at least one file under
 // src-tauri/permissions/*.toml that names an app command. This crate defines none, so
-// is_online needs no entry in src-tauri/capabilities/*.json. Plugin commands (the
-// dialog and fs plugins Task 3 and Task 5 add) are matched by their "plugin:" prefix
-// and always go through the ACL regardless of this, so they will need capability
-// entries. If this crate ever gains its own permissions/*.toml for an app command,
-// every app command, including is_online, starts needing one too.
+// is_online needs no entry in src-tauri/capabilities/*.json. Plugin commands are matched
+// by their "plugin:" prefix and always go through the ACL regardless of this, so they do
+// need capability entries. If this crate ever gains its own permissions/*.toml for an app
+// command, every app command, including is_online, starts needing one too.
 //
-// Task 3 bears this out: save_file is an app command, registered through
-// generate_handler! and given no entry, and needs none. The dialog plugin's own
-// save command, which save_file calls into via DialogExt, carries the "plugin:dialog"
-// prefix and is why src-tauri/capabilities/default.json exists at all, granting
-// "dialog:allow-save".
+// All three commands bear this out: is_online, save_file and age_encrypt are app commands,
+// registered through generate_handler! and given no entry, and need none. The dialog
+// plugin's own save command, which save_file calls into via DialogExt, carries the
+// "plugin:dialog" prefix and is why src-tauri/capabilities/default.json exists at all,
+// granting "dialog:allow-save" and nothing else.
+//
+// ONE PLUGIN, NOT TWO. tauri-plugin-fs was registered here and was never used: every file
+// this shell touches goes through std::fs, and no fs: permission is granted anywhere. A
+// review caught it. It is gone, because an unused plugin in an artifact people run against
+// real seed phrases is supply chain surface bought for nothing, and this project's own
+// decision record ranks supply chain above implementation bugs as a risk.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -35,7 +40,6 @@ mod save;
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![net::is_online, save::save_file, age::age_encrypt])
         .run(tauri::generate_context!())
         .expect("slip39-backup: failed to start the window");

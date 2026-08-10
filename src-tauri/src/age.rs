@@ -13,10 +13,21 @@
 //! process list. PATH is pinned to the bundled directory so age cannot pick up some
 //! other age-plugin-batchpass that happens to be on the machine.
 //!
-//! This module applies NO policy. It does not decide whether an exit code is
-//! acceptable, does not build the transcript, and does not fall back to anything.
-//! Those judgements live in Slip39Demo.Tauri/Services/TauriAgeEncryptor.cs, where the
-//! test suite is.
+//! Why the environment variable and not AGE_PASSPHRASE_FD, which would be tighter still:
+//! carried over from NativeAgeEncryptor.cs, and it is a deliberate trade. A file
+//! descriptor cannot be read from the process list at all, but the command shown in the
+//! transcript would then be one nobody could reproduce by hand, and being able to check
+//! the tool's work outside the tool is worth more here than closing a window that is
+//! about a second wide on a machine with one user. The transcript says so, in as many
+//! words, rather than leaving the user to discover it.
+//!
+//! This module applies NO policy on the encryption itself. It does not judge the exit
+//! code of the encrypt run, does not build the transcript, and does not fall back to
+//! anything: those judgements live in Slip39Demo.Tauri/Services/TauriAgeEncryptor.cs,
+//! where the test suite is. The one exception is the `age --version` preflight, which
+//! fails loudly here. That is not a policy decision about a result; it is the check that
+//! the bundled program is a working executable at all, and there is nothing for C# to
+//! weigh if it is not.
 
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::Serialize;
@@ -117,41 +128,62 @@ fn run(exe: &Path, args: &[&str], dir: &Path, stdin: Option<&[u8]>, passphrase: 
         err_pipe.read_to_end(&mut bytes).map(|_| bytes)
     });
 
+    // Every path from here on reaps the child, including the failure paths. Rust's Child
+    // does not kill or wait on Drop, unlike .NET's Process, so an early return with `?`
+    // would leave an orphan behind that still has the passphrase in its environment. The
+    // most likely way to get there is a broken pipe on the stdin write, which is what
+    // happens if age or its plugin exits before it has read the payload.
+    let waited = feed_and_wait(&mut child, stdin, exe);
+    if waited.is_err() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
+    // Joined unconditionally, and only after the child is known to be gone: each reader
+    // ends when its pipe closes, and the pipes close when the process does.
+    let stdout = join_reader(out_reader, "stdout");
+    let stderr = join_reader(err_reader, "stderr");
+
+    let status = waited?;
+    Ok((
+        status.code().unwrap_or(-1),
+        stdout?,
+        String::from_utf8_lossy(&stderr?).into_owned(),
+    ))
+}
+
+/// Writes the payload, closes stdin, and waits for the child within the timeout. Split out
+/// so `run` has exactly one place to clean up after, rather than a cleanup before each of
+/// several early returns, which is the arrangement that leaks one when a branch is added.
+fn feed_and_wait(
+    child: &mut std::process::Child,
+    stdin: Option<&[u8]>,
+    exe: &Path,
+) -> std::io::Result<std::process::ExitStatus> {
     if let Some(bytes) = stdin {
         child.stdin.as_mut().expect("stdin was piped").write_all(bytes)?;
     }
-    // Closing stdin is what tells age there is no more payload. Without it the child
-    // waits for input that will never come and the timeout below is the only way out.
+    // Closing stdin is what tells age there is no more payload. Without it the child waits
+    // for input that will never come and the timeout is the only way out.
     drop(child.stdin.take());
 
     let deadline = Instant::now() + RUN_TIMEOUT;
-    let status = loop {
+    loop {
         match child.try_wait()? {
-            Some(status) => break status,
+            Some(status) => return Ok(status),
             None if Instant::now() >= deadline => {
-                let _ = child.kill();
-                let _ = child.wait();
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::TimedOut,
                     format!(
-                        "{} did not finish within {} seconds and was killed",
+                        "{} did not finish within {} seconds",
                         exe.display(),
                         RUN_TIMEOUT.as_secs()
                     ),
-                ));
+                ))
             }
             None => std::thread::sleep(POLL_INTERVAL),
         }
-    };
-
-    let stdout = join_reader(out_reader, "stdout")?;
-    let stderr = join_reader(err_reader, "stderr")?;
-
-    Ok((
-        status.code().unwrap_or(-1),
-        stdout,
-        String::from_utf8_lossy(&stderr).into_owned(),
-    ))
+    }
 }
 
 /// Collects one of the reader threads. A panic in a thread whose only job is
