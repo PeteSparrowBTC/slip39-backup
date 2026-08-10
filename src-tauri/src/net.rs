@@ -5,29 +5,44 @@
 //! NIC drivers commonly report operstate "unknown", which false-positives an
 //! airgapped machine as online.
 //!
-//! Fail-safe direction: if /sys cannot be enumerated at all, report online, so
-//! generation falls into the INSECURE-TEST path instead of silently passing as
-//! airgapped. A single unreadable carrier file is different: the kernel refuses that
-//! read for an admin-down interface, which means no link is possible, so that one
-//! interface counts as offline.
+//! Fail-safe direction: if /sys cannot be enumerated at all, or if the enumeration
+//! breaks part way through, report online, so generation falls into the INSECURE-TEST
+//! path instead of silently passing as airgapped. A single unreadable carrier file is
+//! different: the kernel refuses that read for an admin-down interface, which means no
+//! link is possible, so that one interface counts as offline.
+//!
+//! The asymmetry is the whole point. Saying online when the machine is airgapped costs
+//! the user a watermark they did not deserve. Saying offline when the machine is
+//! connected hands them a backup that presents itself as trustworthy, made from a seed
+//! phrase typed on a networked computer. Every unknown resolves toward the first.
 
 use std::path::Path;
 
 pub fn any_carrier_live(net_dir: &Path) -> bool {
-    let entries = match std::fs::read_dir(net_dir) {
+    // Mutable because Iterator::any takes &mut self, and this is the iterator itself
+    // rather than an adapter over it.
+    let mut entries = match std::fs::read_dir(net_dir) {
         Ok(entries) => entries,
         // Cannot enumerate at all: assume the worst.
         Err(_) => return true,
     };
 
-    entries.filter_map(Result::ok).any(|entry| {
-        if entry.file_name() == "lo" {
-            return false;
-        }
-        matches!(
+    entries.any(|entry| match entry {
+        // An entry the iterator itself could not produce. This is a different thing from
+        // an interface whose carrier file will not open: it means the enumeration is
+        // incomplete, so an interface may exist that was never examined. Same reasoning
+        // as the read_dir failure above, same answer: report online.
+        //
+        // Untested, deliberately and with the reason stated rather than left as a gap:
+        // there is no portable way to make ReadDir yield an Err on demand, and a test
+        // that faked the iterator would be testing the fake. The branch is one line and
+        // its direction is the safe one, which is the property that matters.
+        Err(_) => true,
+        Ok(entry) if entry.file_name() == "lo" => false,
+        Ok(entry) => matches!(
             std::fs::read_to_string(entry.path().join("carrier")),
             Ok(text) if text.trim() == "1"
-        )
+        ),
     })
 }
 

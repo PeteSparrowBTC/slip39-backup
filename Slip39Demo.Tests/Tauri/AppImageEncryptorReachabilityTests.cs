@@ -1,3 +1,4 @@
+using System.Reflection;
 using FluentAssertions;
 using Slip39Demo.UI.Services;
 using Xunit;
@@ -22,15 +23,45 @@ namespace Slip39Demo.Tests.Tauri;
 // includes non-public types) exactly as it will for whatever replaces it.
 public class AppImageEncryptorReachabilityTests
 {
+    // The transitive closure of this repository's own assemblies, starting from the
+    // AppImage frontend. Walked rather than listed: a hardcoded list of the three
+    // projects that happen to be linked today would not notice a fourth being added,
+    // and adding a project reference is exactly how an in-process encryptor would come
+    // back. Only Slip39Demo.* assemblies are followed, because the framework and package
+    // graph is large and cannot define an IPayloadEncryptor: the interface is ours.
+    static IReadOnlyCollection<Assembly> OurAssembliesLinkedFrom(Assembly root)
+    {
+        var found = new Dictionary<string, Assembly> { [root.GetName().Name!] = root };
+        var pending = new Queue<Assembly>([root]);
+
+        while (pending.Count > 0)
+            foreach (var reference in pending.Dequeue().GetReferencedAssemblies()
+                         .Where(name => name.Name?.StartsWith("Slip39Demo") == true)
+                         .Where(name => !found.ContainsKey(name.Name!)))
+            {
+                var loaded = Assembly.Load(reference);
+                found[reference.Name!] = loaded;
+                pending.Enqueue(loaded);
+            }
+
+        return found.Values;
+    }
+
     [Fact]
     public void Every_payload_encryptor_reachable_from_the_appimage_frontend_is_declared_in_it()
     {
         var tauriAssembly = typeof(Slip39Demo.Tauri.Services.TauriInterop).Assembly;
-        var uiAssembly = typeof(IPayloadEncryptor).Assembly;
-        var coreAssembly = typeof(Slip39Demo.Core.Age.AgePassphrase).Assembly;
+        var linked = OurAssembliesLinkedFrom(tauriAssembly);
 
-        var encryptorTypesByAssembly = new[] { tauriAssembly, uiAssembly, coreAssembly }
-            .Distinct()
+        // Without this the test could pass by finding nothing to examine. If the walk
+        // ever returns the frontend alone, every assertion below is vacuously true and
+        // an in-process encryptor could sit in Slip39Demo.UI unnoticed, which is the
+        // exact arrangement this file was written to end.
+        linked.Select(assembly => assembly.GetName().Name)
+            .Should().Contain("Slip39Demo.UI",
+                "the walk must reach the shared UI, or it is not examining anything");
+
+        var encryptorTypesByAssembly = linked
             .SelectMany(assembly => assembly.GetTypes()
                 .Where(type => !type.IsAbstract && !type.IsInterface)
                 .Where(type => typeof(IPayloadEncryptor).IsAssignableFrom(type))
