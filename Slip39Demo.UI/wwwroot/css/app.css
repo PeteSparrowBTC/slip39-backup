@@ -36,7 +36,12 @@ body {
     padding: 1.5rem 1rem 4rem;
 }
 
-h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+/* fit-content keeps the heading's own box no wider than its text. Without it the ring
+   below would hug the full block-level width of the h1 (which spans .app, or the free
+   space page-head's flex layout leaves it) and read as a banner instead of a focus
+   indicator. Flex items in .page-head already size to content, so this is a no-op there
+   and only changes anything on the index page's plain h1. */
+h1 { font-size: 1.6rem; margin: 0 0 .25rem; width: fit-content; }
 h2 { font-size: 1.25rem; margin: 0 0 .5rem; }
 
 /* App.razor focuses the h1 after every navigation (FocusOnNavigate), so without this
@@ -45,6 +50,18 @@ h2 { font-size: 1.25rem; margin: 0 0 .5rem; }
    get an indicator: programmatic focus on a tabindex="-1" element does not match
    :focus-visible, a real keyboard interaction does. */
 h1:focus:not(:focus-visible) { outline: none; }
+
+/* The case :not(:focus-visible) above deliberately does not suppress: a hard page load
+   (typed URL, bookmark, refresh) still lands focus-visible per the browser's own input-
+   modality heuristic, and a real keyboard tab to the heading always should. Rather than
+   fight the browser further, this makes that ring look designed: the same accent used
+   everywhere else, offset so it reads as a highlight around the heading rather than a
+   stray default browser box. */
+h1:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: .35rem;
+    border-radius: .3rem;
+}
 
 .subtitle { color: var(--ink-dim); margin: 0 0 1.5rem; }
 
@@ -246,6 +263,7 @@ h1:focus:not(:focus-visible) { outline: none; }
 .choice-pair > .panel {
     margin-bottom: 0;
     display: flex;
+    flex-direction: column;
 }
 
 .choice-pair .panel-body {

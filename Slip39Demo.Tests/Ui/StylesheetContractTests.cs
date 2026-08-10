@@ -71,6 +71,20 @@ public class StylesheetContractTests
             AppCss());
     }
 
+    // The case the rule above deliberately leaves alone: a hard page load or a real
+    // keyboard tab still lands a focus-visible ring on the h1, so it is styled to look
+    // like part of the design (the same accent colour used everywhere else) rather than
+    // suppressed. Asserted on var(--accent) specifically, not just "outline: something",
+    // so a later edit that reaches for an arbitrary colour instead of the palette variable
+    // fails the build the way the missing suppression rule once slipped past review.
+    [Fact]
+    public void Keyboard_visible_h1_focus_is_styled_with_the_accent_colour()
+    {
+        Assert.Matches(
+            new Regex(@"h1:focus-visible\s*\{[^}]*outline:[^;]*var\(--accent\)"),
+            AppCss());
+    }
+
     [Theory]
     [InlineData("--bg", "#14161a")]
     [InlineData("--panel", "#1c1f26")]
