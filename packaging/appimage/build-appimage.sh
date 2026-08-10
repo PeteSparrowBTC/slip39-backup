@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Builds slip39-backup-x86_64.AppImage: the offline, native-window artifact for
-# Tails 7+. Run on Linux (a CI ubuntu runner, or WSL for local builds).
+# Builds the offline, native-window artifact for Tails 7+, named by the caller as
+# slip39-backup-<version>-x86_64.AppImage. Run on Linux (a CI ubuntu runner, or WSL for
+# local builds).
 #
 # Usage:
 #   ./build-appimage.sh <tauri-release-binary> <output.AppImage>
@@ -32,7 +33,20 @@ trap 'rm -rf "$WORK"' EXIT
 # The check that matters on Tails. Debian 13 dropped the webkit2gtk-4.0 series, so a
 # binary linking libwebkit2gtk-4.0.so.37 will not start there, and the failure looks
 # like an application bug rather than a packaging one. Fail here instead.
+#
+# readelf is checked for separately, and not merely for tidiness. Without it, the `|| true`
+# below swallows the "command not found" and leaves NEEDED empty, which trips the
+# 4.1-is-missing branch and reports a linking problem in the binary when the real problem
+# is a missing tool on the runner. Failing closed is right; failing closed while naming the
+# wrong cause would send somebody looking in the wrong place. It comes from binutils, which
+# build-essential pulls in.
+command -v readelf >/dev/null 2>&1 || {
+  echo "error: readelf not found, so the webkit ABI cannot be checked (install binutils)"; exit 1; }
+
 NEEDED="$(readelf -d "$BINARY" | grep NEEDED || true)"
+[ -n "$NEEDED" ] || {
+  echo "error: readelf reported no NEEDED entries for $BINARY; it is not a dynamically linked ELF binary"
+  exit 1; }
 if echo "$NEEDED" | grep -q "libwebkit2gtk-4\.0"; then
   echo "error: $BINARY links webkit2gtk-4.0, which Tails 7 does not ship"; exit 1
 fi
