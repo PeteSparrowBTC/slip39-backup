@@ -1185,15 +1185,20 @@ Append to `StylesheetContractTests`:
 
     // Catches a Bootstrap class left behind in markup, which would silently do
     // nothing now that the framework is gone.
+    //
+    // The boundaries are (?<![\w-]) and (?![\w-]), not \b, and that is load-bearing.
+    // \b treats a hyphen as a boundary, so \brow\b matches the "row" inside the
+    // legitimate new class "row-between" and fails the build on correct code. The
+    // same trap cost a round in Task 1 with .panel and .panel-header.
     [Fact]
     public void No_razor_file_uses_a_bootstrap_class()
     {
         var pattern = new Regex(
-            @"\b(card|card-header|card-body|card-title|card-text|alert|alert-[a-z]+|" +
+            @"(?<![\w-])(card|card-header|card-body|card-title|card-text|alert|alert-[a-z]+|" +
             @"btn-outline-[a-z]+|btn-secondary|btn-success|btn-info|form-control|form-label|" +
             @"form-check|form-check-input|form-check-label|form-text|row|col-[a-z0-9-]+|" +
             @"spinner-border|text-muted|text-white|text-info|text-secondary|bg-dark|bg-light|" +
-            @"bg-success|border-success|user-select-all|font-monospace|shadow-sm|sticky-top)\b");
+            @"bg-success|border-success|user-select-all|font-monospace|shadow-sm|sticky-top)(?![\w-])");
 
         var offenders = Directory
             .EnumerateFiles(Path.Combine(RepoRoot(), "Slip39Demo.UI"), "*.razor", SearchOption.AllDirectories)
@@ -1221,6 +1226,28 @@ of every leftover, and each one is a miss from Tasks 4 to 7. Fix them before con
 ```bash
 git rm -r Slip39Demo.UI/wwwroot/lib/bootstrap
 ```
+
+- [ ] **Step 3b: Delete the two scoped-CSS links, which Task 3 turned into 404s**
+
+Task 3 deleted `MainLayout.razor.css` and `NavMenu.razor.css`, and they were the only
+`.razor.css` files in the solution. With no scoped CSS anywhere, Blazor stops emitting the
+isolation bundle, so these two lines now request a file that cannot exist and produce a 404 on
+every page load of both projects. Delete them.
+
+In `Slip39Demo.Web/wwwroot/index.html`:
+
+```html
+    <link href="Slip39Demo.Web.styles.css" rel="stylesheet" />
+```
+
+In `Slip39Demo.Desktop/wwwroot/index.html`:
+
+```html
+    <link href="Slip39Demo.Desktop.styles.css" rel="stylesheet" />
+```
+
+Nothing else references either filename. If a future component gains a `.razor.css`, the bundle
+returns and the link has to come back with it.
 
 - [ ] **Step 4: Run the whole suite**
 
@@ -1258,6 +1285,238 @@ gh pr create --title "Restyle from dice-to-seed, and delete the vendored Bootstr
 ```
 
 Do not merge it. Merging is the human's job.
+
+---
+
+## Task 9: Replace the emoji icons with inline SVG
+
+Added after Task 8, on review of the rendered result. The two landing cards showed 📤 and 📥
+as generic trays that read as nothing in particular.
+
+The reason to change them is not only that they look poor. **An emoji is a font dependency.**
+This application has to render identically on an offline Tails session with a minimal font set,
+and how a pictographic emoji resolves there is not something this repository can verify from the
+Tails package manifest. `app.css` already states the principle for dice-to-seed's dice faces:
+the pips are plain elements "so they render identically everywhere, including on a system with
+minimal fonts installed". Heading emoji broke that rule.
+
+Scope: the five **decorative** emoji only. The **semantic** glyphs stay, because they are part of
+the rule that colour is never the only encoding and they are covered by the banner tests: `⚠` on
+the online banner and the `INSECURE-TEST` warning, `✓` on the offline and success banners. They
+are also a much weaker case, being basic-symbol-range characters rather than astral-plane
+pictographs. The `→` and `←` in button labels stay for the same reason.
+
+**Files:**
+- Create: `Slip39Demo.UI/Shared/Icon.razor`
+- Create: `Slip39Demo.Tests/Ui/IconTests.cs`
+- Modify: `Slip39Demo.UI/wwwroot/css/app.css` (add two rules)
+- Modify: `Slip39Demo.Tests/Ui/StylesheetContractTests.cs` (contract grows to 37 names)
+- Modify: `Slip39Demo.UI/Pages/Index.razor` (3 sites), `Owner.razor` (1 site), `Recoverer.razor` (1 site)
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces: `<Icon Name="backup" />`, `<Icon Name="recover" />`, `<Icon Name="lock" />`, and the
+  CSS classes `icon` and `with-icon`.
+
+A component rather than pasted SVG, because `backup` and `recover` each appear on two pages and
+duplicating path data is how two icons quietly stop matching.
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `Slip39Demo.Tests/Ui/IconTests.cs`:
+
+```csharp
+using Bunit;
+using FluentAssertions;
+using Slip39Demo.UI.Shared;
+using Xunit;
+
+namespace Slip39Demo.Tests.Ui;
+
+public class IconTests : TestContext
+{
+    [Theory]
+    [InlineData("backup")]
+    [InlineData("recover")]
+    [InlineData("lock")]
+    public void Known_icon_renders_drawable_geometry(string name)
+    {
+        var cut = RenderComponent<Icon>(p => p.Add(c => c.Name, name));
+
+        cut.Markup.Should().Contain("<svg");
+        // currentColor is the whole point: the icon follows the colour of the text it
+        // sits in, including the accent, with no per-icon colour to keep in sync.
+        cut.Markup.Should().Contain("currentColor");
+        cut.FindAll("path, rect").Should().NotBeEmpty($"icon '{name}' must draw something");
+    }
+
+    // An empty <svg> is invisible, so a typo in a name would silently remove an icon
+    // and nothing would ever report it. Fail loudly instead.
+    [Fact]
+    public void Unknown_icon_name_throws_rather_than_rendering_nothing()
+    {
+        var render = () => RenderComponent<Icon>(p => p.Add(c => c.Name, "no-such-icon"));
+
+        render.Should().Throw<ArgumentException>().WithMessage("*no-such-icon*");
+    }
+
+    // The guard. Astral-plane characters (U+10000 and above) are exactly the
+    // pictographic emoji, and in UTF-16 they always appear as a surrogate pair. The
+    // glyphs deliberately kept in this UI (⚠ ✓ → ←) are all in the basic plane, so
+    // this catches a returning emoji without touching them.
+    [Fact]
+    public void No_razor_file_contains_an_astral_plane_character()
+    {
+        var offenders = Directory
+            .EnumerateFiles(
+                Path.Combine(StylesheetContractTests.RepoRootPath(), "Slip39Demo.UI"),
+                "*.razor",
+                SearchOption.AllDirectories)
+            .SelectMany(f => File.ReadLines(f)
+                .Select((line, i) => (file: Path.GetFileName(f), no: i + 1, line))
+                .Where(x => x.line.Any(char.IsSurrogate))
+                .Select(x => $"{x.file}:{x.no}"))
+            .ToArray();
+
+        offenders.Should().BeEmpty(
+            "emoji are a font dependency and must not return: " + string.Join(", ", offenders));
+    }
+}
+```
+
+This needs `RepoRoot()` in `StylesheetContractTests` to be reachable. Change it from `static
+string RepoRoot()` to `internal static string RepoRootPath()` and update its three call sites in
+that file. Do not duplicate the walk-up logic into a second test class.
+
+- [ ] **Step 2: Run the tests and watch them fail**
+
+Run: `dotnet test Slip39Demo.slnx --filter FullyQualifiedName~IconTests`
+
+Expected: compile error, `Icon` does not exist. `No_razor_file_contains_an_astral_plane_character`
+will fail once it compiles, naming the five emoji sites.
+
+- [ ] **Step 3: Write the component**
+
+Create `Slip39Demo.UI/Shared/Icon.razor`:
+
+```razor
+@* Inline SVG icons.
+   
+   These were emoji (📤 📥 🔐). An emoji is a font dependency, and this application has to
+   render identically on an offline Tails session with a minimal font set, which is the same
+   reason app.css draws dice pips as elements rather than using a glyph font. These paths
+   ship in the markup, inherit the surrounding text colour through currentColor, and cannot
+   degrade to a box.
+   
+   Geometry is a 24x24 viewBox with a 1.75 stroke and round joins, so the three icons look
+   like one set. *@
+<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+     stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    @switch (Name)
+    {
+        case "backup":
+            @* Arrow leaving a tray: something going out of this machine, onto paper or metal. *@
+            <path d="M12 15V3" />
+            <path d="M7 8l5-5 5 5" />
+            <path d="M3 15v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4" />
+            break;
+
+        case "recover":
+            @* The same tray, arrow reversed: shares coming back in. *@
+            <path d="M12 3v12" />
+            <path d="M7 10l5 5 5-5" />
+            <path d="M3 15v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4" />
+            break;
+
+        case "lock":
+            <rect x="4" y="10" width="16" height="11" rx="2" />
+            <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+            break;
+
+        default:
+            throw new ArgumentException($"unknown icon name '{Name}'", nameof(Name));
+    }
+</svg>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+}
+```
+
+- [ ] **Step 4: Add the two CSS rules**
+
+Append to the "Misc" section of `Slip39Demo.UI/wwwroot/css/app.css`:
+
+```css
+/* Inline SVG icons, sized in em so they track the heading they sit in. See
+   Slip39Demo.UI/Shared/Icon.razor for why these are not emoji. */
+.icon {
+    width: 1.05em;
+    height: 1.05em;
+    flex: none;
+}
+
+.with-icon {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+```
+
+- [ ] **Step 5: Extend the stylesheet contract**
+
+In `Slip39Demo.Tests/Ui/StylesheetContractTests.cs`, add `icon` and `with-icon` to the contract
+name list. It goes from 35 names to 37. The list is the contract; a class that is not on it is
+not covered.
+
+- [ ] **Step 6: Replace the five emoji**
+
+`Slip39Demo.UI/Pages/Index.razor`:
+
+```razor
+<h1 class="with-icon"><Icon Name="lock" /> SLIP-39 + age wallet backup</h1>
+```
+```razor
+            <h2 class="with-icon"><Icon Name="backup" /> Create backup</h2>
+```
+```razor
+            <h2 class="with-icon"><Icon Name="recover" /> Recover wallet</h2>
+```
+
+`Slip39Demo.UI/Pages/Owner.razor`:
+
+```razor
+    <h1 class="with-icon"><Icon Name="backup" /> Create backup</h1>
+```
+
+`Slip39Demo.UI/Pages/Recoverer.razor`:
+
+```razor
+    <h2 class="with-icon"><Icon Name="recover" /> Recover wallet</h2>
+```
+
+Leave the surrounding `page-head` and `panel` structure alone, and change no `@code` block.
+
+- [ ] **Step 7: Run the tests and watch them pass**
+
+Run: `dotnet test Slip39Demo.slnx -c Release`
+
+Expected: PASS. `No_razor_file_contains_an_astral_plane_character` now finds nothing, and
+`StylesheetContractTests` covers 37 names.
+
+- [ ] **Step 8: Look at it**
+
+The icons are the whole point of this task, so this check is not optional. Serve the app, load
+the landing page and both inner pages, and confirm: the icons sit on the text baseline rather
+than floating, they are the same visual weight as each other, and the `backup` icon on the
+landing card takes the accent colour on hover along with its heading. Capture a screenshot.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add Slip39Demo.UI Slip39Demo.Tests/Ui
+git commit -m "Draw the heading icons as inline SVG instead of emoji"
+```
 
 ---
 
