@@ -175,15 +175,17 @@ One file, one window — no browser, no server, no Tor configuration.
 
 **Download from GitHub Releases:**
 1. Go to [Releases](https://github.com/PeteSparrowBTC/slip39-backup/releases)
-2. Download `slip39-backup-x86_64.AppImage` and its `.sha256`
+2. Download the AppImage and its `.sha256`. The filename carries the version, for
+   example `slip39-backup-2.0.0-x86_64.AppImage`, and the app shows the same number in
+   its footer
 3. Copy both to a USB drive
 
 **On Tails 7 or later** (older Tails is EOL and unsupported):
 ```bash
-# 1. Verify and run — a native window opens directly
-sha256sum -c slip39-backup-x86_64.AppImage.sha256
-chmod +x slip39-backup-x86_64.AppImage
-./slip39-backup-x86_64.AppImage
+# 1. Verify and run. A native window opens directly.
+sha256sum -c slip39-backup-2.0.0-x86_64.AppImage.sha256
+chmod +x slip39-backup-2.0.0-x86_64.AppImage
+./slip39-backup-2.0.0-x86_64.AppImage
 ```
 
 See [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md) for the complete guide.
@@ -303,7 +305,7 @@ git push origin v2.0.0
 This triggers:
 - Build and publish
 - Create GitHub Release
-- Attach `slip39-backup-x86_64.AppImage` + `.sha256` for download (smoke-tested
+- Attach `slip39-backup-<version>-x86_64.AppImage` + `.sha256` for download (smoke-tested
   in CI under xvfb against the same WebKitGTK stack Tails ships)
 
 ## Security Considerations
