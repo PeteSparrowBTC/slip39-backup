@@ -133,22 +133,37 @@ fn run(exe: &Path, args: &[&str], dir: &Path, stdin: Option<&[u8]>, passphrase: 
     // would leave an orphan behind that still has the passphrase in its environment. The
     // most likely way to get there is a broken pipe on the stdin write, which is what
     // happens if age or its plugin exits before it has read the payload.
-    let waited = feed_and_wait(&mut child, stdin, exe);
-    if waited.is_err() {
-        let _ = child.kill();
-        let _ = child.wait();
-    }
+    let status = match feed_and_wait(&mut child, stdin, exe) {
+        Ok(status) => status,
+        Err(e) => {
+            let _ = child.kill();
+            let _ = child.wait();
 
-    // Joined unconditionally, and only after the child is known to be gone: each reader
-    // ends when its pipe closes, and the pipes close when the process does.
-    let stdout = join_reader(out_reader, "stdout");
-    let stderr = join_reader(err_reader, "stderr");
+            // The readers are abandoned rather than joined, and this is the difference
+            // between a timeout that works and a timeout that hangs. age spawns
+            // age-plugin-batchpass, which inherits these pipe handles. Killing age does not
+            // kill the plugin, so if the plugin is what hung (the case the timeout exists
+            // for) its end of the pipe stays open, read_to_end never returns, and joining
+            // here would block forever inside the very branch meant to escape a block.
+            //
+            // The cost is two parked threads for the life of the process and the loss of
+            // stderr for this run. Neither matters: the error already names what timed out,
+            // and generation is failing. Returning is what the caller needs.
+            drop(out_reader);
+            drop(err_reader);
+            return Err(e);
+        }
+    };
 
-    let status = waited?;
+    // Only reached when the child exited on its own, so both pipes are closed and both
+    // reads have already finished or are about to.
+    let stdout = join_reader(out_reader, "stdout")?;
+    let stderr = join_reader(err_reader, "stderr")?;
+
     Ok((
         status.code().unwrap_or(-1),
-        stdout?,
-        String::from_utf8_lossy(&stderr?).into_owned(),
+        stdout,
+        String::from_utf8_lossy(&stderr).into_owned(),
     ))
 }
 

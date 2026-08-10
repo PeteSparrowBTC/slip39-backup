@@ -5,12 +5,24 @@ namespace Slip39Demo.Tests.Tauri;
 
 public class TauriConnectivityProbeTests
 {
+    // The command name the Rust shell registers. Asserted rather than ignored: a review
+    // pointed out that these fakes answered whatever they were asked, so renaming the Rust
+    // command to isOnline would have left every test and CI green while the probe threw at
+    // runtime, was caught by the deliberately broad catch, and reported online, watermarking
+    // every backup made on a genuinely airgapped machine INSECURE-TEST. A wrong watermark is
+    // not a data loss, but it teaches the user to distrust the one signal that tells them
+    // whether their backup is real.
+    const string Command = "is_online";
+
     sealed class FakeInterop(Func<string, object?> handler) : ITauriInterop
     {
-        public ValueTask<T> InvokeAsync<T>(string command, object? args = null) =>
-            handler(command) is T value
+        public ValueTask<T> InvokeAsync<T>(string command, object? args = null)
+        {
+            Assert.Equal(Command, command);
+            return handler(command) is T value
                 ? ValueTask.FromResult(value)
                 : throw new InvalidOperationException($"unexpected command {command}");
+        }
     }
 
     sealed class ThrowingInterop : ITauriInterop

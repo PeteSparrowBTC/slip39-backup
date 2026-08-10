@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Slip39Demo.Tauri.Services;
 using Slip39Demo.UI.Services;
 using Xunit;
@@ -9,10 +10,25 @@ public class TauriAgeEncryptorTests
 {
     static readonly byte[] Key = Enumerable.Range(0, 32).Select(i => (byte)i).ToArray();
 
+    // The command name the Rust shell registers, and the two argument names Tauri turns into
+    // snake_case parameters on the way in. Asserted rather than ignored, because the stub
+    // used to answer whatever it was asked: renaming either side would have left every test
+    // here green and failed only at runtime, on a real machine, after a backup had been
+    // generated and independently verified, as a generic error where a saved file should be.
+    const string Command = "age_encrypt";
+
     sealed class StubInterop(AgeRunDto result) : ITauriInterop
     {
-        public ValueTask<T> InvokeAsync<T>(string command, object? args = null) =>
-            ValueTask.FromResult((T)(object)result);
+        public ValueTask<T> InvokeAsync<T>(string command, object? args = null)
+        {
+            Assert.Equal(Command, command);
+
+            var sent = JsonSerializer.SerializeToElement(args);
+            Assert.True(sent.TryGetProperty("plaintextB64", out _), "plaintextB64 must be sent");
+            Assert.True(sent.TryGetProperty("passphraseHex", out _), "passphraseHex must be sent");
+
+            return ValueTask.FromResult((T)(object)result);
+        }
     }
 
     static AgeRunDto Good(byte[] ciphertext) => new()

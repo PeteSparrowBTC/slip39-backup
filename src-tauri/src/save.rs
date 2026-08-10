@@ -13,10 +13,17 @@ use tauri_plugin_dialog::DialogExt;
 /// has that stick as its working directory, so a picker with no directory set can open
 /// somewhere mounted read-only and make the user's first attempt to save fail.
 ///
-/// Returns None when HOME is unset or is not a directory, in which case the picker keeps
-/// its own default rather than being pointed at somewhere that does not exist.
-fn preferred_directory() -> Option<PathBuf> {
-    let home = PathBuf::from(std::env::var_os("HOME")?);
+/// Returns None when the value is absent or is not a directory, in which case the picker
+/// keeps its own default rather than being pointed at somewhere that does not exist.
+///
+/// HOME is passed in rather than read here, and that is not a style preference. The version
+/// that read the variable itself could only be tested by setting it, and setting a variable
+/// mutates the process environment, which libc shares with every thread. cargo runs tests
+/// on parallel threads and one of them spawns a real subprocess, so the test and that spawn
+/// were a live data race on `environ`: undefined behaviour, in the suite that guards the
+/// encrypt path. Taking the value as an argument removes the reason to mutate anything.
+fn preferred_directory(home: Option<std::ffi::OsString>) -> Option<PathBuf> {
+    let home = PathBuf::from(home?);
     home.is_dir().then_some(home)
 }
 
@@ -41,7 +48,7 @@ pub async fn save_file(
         // process they will perform once.
         .set_title("Save the backup bundle");
 
-    if let Some(directory) = preferred_directory() {
+    if let Some(directory) = preferred_directory(std::env::var_os("HOME")) {
         dialog = dialog.set_directory(directory);
     }
 
@@ -118,30 +125,31 @@ mod tests {
     use super::*;
     use std::path::Path;
 
-    // One test rather than three, and deliberately so: these mutate HOME, and cargo runs
-    // tests on parallel threads, so separate cases would race each other over the same
-    // process-wide variable and fail intermittently. Nothing else in this crate reads
-    // HOME.
+    // Three cases rather than one, and no environment mutation at all. The version this
+    // replaces set HOME and restored it afterwards, which was a data race against the test
+    // that spawns a real subprocess on another thread: libc's environ is shared by every
+    // thread, and cargo runs tests in parallel. Passing the value in removed the reason to
+    // touch the environment, and with the race gone there is no reason to crowd the cases
+    // into one test either.
     #[test]
-    fn the_picker_opens_at_home_only_when_home_is_a_real_directory() {
-        let original = std::env::var_os("HOME");
+    fn the_picker_opens_at_home_when_home_is_a_real_directory() {
         let real = std::env::temp_dir();
 
-        std::env::set_var("HOME", &real);
-        assert_eq!(preferred_directory(), Some(real));
+        assert_eq!(preferred_directory(Some(real.clone().into_os_string())), Some(real));
+    }
 
-        // A HOME that points at nothing must not be handed to the picker: better its own
-        // default than a directory that does not exist.
-        std::env::set_var("HOME", "/definitely/not/a/directory/here");
-        assert_eq!(preferred_directory(), None);
+    // A HOME that points at nothing must not be handed to the picker: better its own
+    // default than a directory that does not exist.
+    #[test]
+    fn a_home_that_is_not_a_directory_is_ignored() {
+        let missing = std::ffi::OsString::from("/definitely/not/a/directory/here");
 
-        std::env::remove_var("HOME");
-        assert_eq!(preferred_directory(), None);
+        assert_eq!(preferred_directory(Some(missing)), None);
+    }
 
-        match original {
-            Some(value) => std::env::set_var("HOME", value),
-            None => std::env::remove_var("HOME"),
-        }
+    #[test]
+    fn an_absent_home_is_ignored() {
+        assert_eq!(preferred_directory(None), None);
     }
 
     // The other half of a contract that spans two languages. C# encodes the bundle with
