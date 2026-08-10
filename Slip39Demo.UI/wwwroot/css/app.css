@@ -39,6 +39,13 @@ body {
 h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
 h2 { font-size: 1.25rem; margin: 0 0 .5rem; }
 
+/* App.razor focuses the h1 after every navigation (FocusOnNavigate), so without this
+   a ring is drawn around the heading on every page load. Scoped to :not(:focus-visible)
+   rather than plain :focus, because a keyboard user who tabs to the heading should still
+   get an indicator: programmatic focus on a tabindex="-1" element does not match
+   :focus-visible, a real keyboard interaction does. */
+h1:focus:not(:focus-visible) { outline: none; }
+
 .subtitle { color: var(--ink-dim); margin: 0 0 1.5rem; }
 
 .section-label {
@@ -218,6 +225,39 @@ h2 { font-size: 1.25rem; margin: 0 0 .5rem; }
 @media (min-width: 62rem) {
     .split { grid-template-columns: 7fr 5fr; }
     .split-sticky { position: sticky; top: 1.25rem; }
+}
+
+/* Two peer panels, equal width and equal height, for a page that offers a choice between
+   two routes. Deliberately not .split: that one is 7fr 5fr with align-items:start, because
+   Owner's right column is a sticky action panel that must not stretch. Grid's default
+   align-items:stretch is what equalises the heights here, replacing Bootstrap's h-100.
+   The button is pushed to the bottom so the two cards' buttons line up even when their
+   descriptions differ in length. */
+.choice-pair {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+
+@media (min-width: 62rem) {
+    .choice-pair { grid-template-columns: 1fr 1fr; }
+}
+
+.choice-pair > .panel {
+    margin-bottom: 0;
+    display: flex;
+}
+
+.choice-pair .panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+    flex: 1;
+}
+
+.choice-pair .panel-body .btn {
+    margin-top: auto;
+    align-self: flex-start;
 }
 
 .cols {

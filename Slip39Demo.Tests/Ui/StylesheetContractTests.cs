@@ -37,7 +37,7 @@ public class StylesheetContractTests
         "btn", "btn-primary", "btn-danger", "btn-sm", "btn-block", "split", "split-sticky",
         "cols", "row-between", "mono-block", "words", "transcript", "t-command", "t-output",
         "t-warning", "t-note", "check", "spinner", "section-label", "subtitle", "page-head",
-        "icon", "with-icon",
+        "icon", "with-icon", "choice-pair",
     ];
 
     // Matches the class as a whole selector token, not a substring: `\.panel\b`
@@ -53,6 +53,22 @@ public class StylesheetContractTests
 
         missing.Should().BeEmpty(
             $"app.css must define every class the plan's contract promises; missing: {string.Join(", ", missing)}");
+    }
+
+    // A regression guard for something a test suite cannot otherwise see. App.razor
+    // focuses the h1 after every navigation, so without a rule suppressing the ring
+    // there is a box around the heading on every page load. The Task 1 rewrite of this
+    // stylesheet dropped the rule that origin/main had, and only a screenshot caught it.
+    //
+    // The :not(:focus-visible) part is asserted deliberately: a bare
+    // "h1:focus { outline: none }" would pass a looser test while removing the focus
+    // indicator from keyboard users as well.
+    [Fact]
+    public void Programmatic_h1_focus_does_not_draw_a_ring_but_keyboard_focus_still_does()
+    {
+        Assert.Matches(
+            new Regex(@"h1:focus:not\(:focus-visible\)\s*\{[^}]*outline:\s*none"),
+            AppCss());
     }
 
     [Theory]
