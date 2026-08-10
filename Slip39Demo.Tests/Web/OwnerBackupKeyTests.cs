@@ -7,6 +7,7 @@ using Slip39Demo.Core.Age;
 using Slip39Demo.Core.Slip39;
 using Slip39Demo.UI.Pages;
 using Slip39Demo.UI.Services;
+using Slip39Demo.Web.Services;
 using Xunit;
 
 namespace Slip39Demo.Tests.Web;

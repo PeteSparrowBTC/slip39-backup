@@ -89,7 +89,7 @@ task proves it for this one, before any command exists to complicate the diagnos
 **Interfaces:**
 - Produces: a published frontend at `publish-tauri/wwwroot`, and a binary at `src-tauri/target/release/slip39-backup`.
 
-- [ ] **Step 1: Create the frontend project**
+- [x] **Step 1: Create the frontend project**
 
 `Slip39Demo.Tauri/Slip39Demo.Tauri.csproj`:
 
@@ -119,7 +119,7 @@ task proves it for this one, before any command exists to complicate the diagnos
 If the package version does not resolve, match whatever `Slip39Demo.Web.csproj`
 already uses rather than guessing.
 
-- [ ] **Step 2: Create the host page**
+- [x] **Step 2: Create the host page**
 
 `Slip39Demo.Tauri/wwwroot/index.html`:
 
@@ -164,7 +164,7 @@ already uses rather than guessing.
 </html>
 ```
 
-- [ ] **Step 3: Create Program.cs with the services still unimplemented**
+- [x] **Step 3: Create Program.cs with the services still unimplemented**
 
 `Slip39Demo.Tauri/Program.cs`:
 
@@ -203,7 +203,7 @@ sealed class NotWiredYet : IFileDownloader, IConnectivityProbe, IPayloadEncrypto
 }
 ```
 
-- [ ] **Step 4: Publish the frontend and check what came out**
+- [x] **Step 4: Publish the frontend and check what came out**
 
 ```bash
 dotnet publish Slip39Demo.Tauri -c Release -o publish-tauri
@@ -213,7 +213,7 @@ ls publish-tauri/wwwroot/_framework/*.wasm | head
 Expected: `.wasm` files present. If `_framework` is empty the project is not building
 as WebAssembly, and nothing later in this plan will work.
 
-- [ ] **Step 5: Create the Rust shell**
+- [x] **Step 5: Create the Rust shell**
 
 `src-tauri/Cargo.toml`:
 
@@ -338,7 +338,7 @@ the only component without a version.
 require `dotnet publish Slip39Demo.Tauri -c Release -o publish-tauri` to have run first.
 That is why step 4 publishes before step 7 builds.
 
-- [ ] **Step 6: Provide an RGBA icon**
+- [x] **Step 6: Provide an RGBA icon**
 
 ```bash
 mkdir -p src-tauri/icons
@@ -360,7 +360,7 @@ Expected: a window opens showing the landing page, styled. If it is blank, open 
 WebView inspector and look for a CSP violation naming `wasm-unsafe-eval`, which means
 the CSP line above was not applied.
 
-- [ ] **Step 8: Add both projects to the solution**
+- [x] **Step 8: Add both projects to the solution**
 
 ```bash
 dotnet sln Slip39Demo.slnx add Slip39Demo.Tauri/Slip39Demo.Tauri.csproj
@@ -369,7 +369,7 @@ dotnet test Slip39Demo.slnx -c Release
 
 Expected: PASS. Nothing references the new project yet, so this is a build check.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src-tauri Slip39Demo.Tauri Slip39Demo.slnx
@@ -394,7 +394,7 @@ capability entry.
 - Consumes: the shell from Task 1.
 - Produces: `ITauriInterop.InvokeAsync<T>(string command, object? args = null)`, used by Tasks 3 and 5.
 
-- [ ] **Step 1: Write the failing C# test**
+- [x] **Step 1: Write the failing C# test**
 
 `Slip39Demo.Tests/Tauri/TauriConnectivityProbeTests.cs`:
 
@@ -435,13 +435,13 @@ public class TauriConnectivityProbeTests
 }
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `dotnet test Slip39Demo.slnx --filter FullyQualifiedName~TauriConnectivityProbeTests`
 
 Expected: compile error, `ITauriInterop` does not exist.
 
-- [ ] **Step 3: Write the interop seam**
+- [x] **Step 3: Write the interop seam**
 
 `Slip39Demo.Tauri/Services/ITauriInterop.cs`:
 
@@ -500,13 +500,13 @@ public sealed class TauriConnectivityProbe(ITauriInterop interop) : IConnectivit
 }
 ```
 
-- [ ] **Step 4: Run the C# test and watch it pass**
+- [x] **Step 4: Run the C# test and watch it pass**
 
 Run: `dotnet test Slip39Demo.slnx --filter FullyQualifiedName~TauriConnectivityProbeTests`
 
 Expected: PASS, 3 tests.
 
-- [ ] **Step 5: Write the Rust command with its own test**
+- [x] **Step 5: Write the Rust command with its own test**
 
 `src-tauri/src/net.rs`:
 
@@ -609,7 +609,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 6: Register the command**
+- [x] **Step 6: Register the command**
 
 In `src-tauri/src/main.rs`, add `mod net;` at the top and the handler:
 
@@ -617,7 +617,7 @@ In `src-tauri/src/main.rs`, add `mod net;` at the top and the handler:
         .invoke_handler(tauri::generate_handler![net::is_online])
 ```
 
-- [ ] **Step 7: Run the Rust tests**
+- [x] **Step 7: Run the Rust tests**
 
 ```bash
 cargo test --manifest-path src-tauri/Cargo.toml
@@ -661,7 +661,7 @@ console shows a permission error naming what is missing. If it is the latter, cr
 and add whatever the error names. Record the answer in a comment at the top of
 `main.rs`, so the next person does not have to rediscover it.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src-tauri Slip39Demo.Tauri Slip39Demo.Tests/Tauri

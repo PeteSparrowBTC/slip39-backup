@@ -1,7 +1,8 @@
 <!-- The AppImage frontend. Deliberately separate from Slip39Demo.Web rather than one
-     build that detects Tauri at runtime: this project never references
-     AgeSharpPayloadEncryptor, so the artifact that touches real seed phrases cannot
-     fall back to encrypting in-process. See
+     build that detects Tauri at runtime: AgeSharpPayloadEncryptor is declared in
+     Slip39Demo.Web, which this project does not reference, so there is no such type
+     for Program.cs to register even by mistake. Guarded by reflection in
+     Slip39Demo.Tests/Tauri/AppImageEncryptorReachabilityTests.cs. See
      docs/specs/2026-08-09-tauri-shell-and-styling-design.md. -->
 <Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
   <PropertyGroup>

@@ -27,6 +27,10 @@
     <!-- ITauriInterop and the services built on it live in the Tauri frontend project;
          referenced here so TauriConnectivityProbeTests can see them. -->
     <ProjectReference Include="..\Slip39Demo.Tauri\Slip39Demo.Tauri.csproj" />
+    <!-- AgeSharpPayloadEncryptor lives here now, not in Slip39Demo.UI, precisely so
+         Slip39Demo.Tauri cannot reference it; the owner-form tests still need it as a
+         test double. -->
+    <ProjectReference Include="..\Slip39Demo.Web\Slip39Demo.Web.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- C2SP/CCTV age wire-format vectors, read at runtime by
