@@ -344,9 +344,23 @@ mod tests {
     // checksum. Absent, it reports why it did nothing rather than failing, so a
     // contributor without the binaries sees a partial run instead of a red suite.
     // This mirrors the convention CLAUDE.md documents for the C# suite.
+    //
+    // BUT NOT IN CI. Rust has no equivalent of xunit's SkippableFact, so an early return
+    // is reported as a pass, and a review pointed out what that means here: if the fetch
+    // step in .github/workflows/appimage.yml ever stops setting the variable, this test
+    // goes on printing a note and passing, and the only automated run of a real age
+    // subprocess anywhere in the repository disappears without turning anything red. A
+    // silent loss of exactly this coverage is what the test was written to prevent, so in
+    // CI a missing variable is a failure. GitHub Actions always sets CI.
     #[test]
     fn the_real_age_program_produces_an_age_file() {
         let Ok(dir) = std::env::var("SLIP39_AGE_DIR") else {
+            assert!(
+                std::env::var_os("CI").is_none(),
+                "SLIP39_AGE_DIR is not set while running in CI, so the only test that runs \
+                 the real age program tested nothing. Check the step that fetches the pinned \
+                 age release in .github/workflows/appimage.yml."
+            );
             eprintln!("skipped: SLIP39_AGE_DIR is not set, so no age release is available");
             return;
         };
