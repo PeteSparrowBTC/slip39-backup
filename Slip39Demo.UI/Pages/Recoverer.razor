@@ -9,53 +9,51 @@
 
 <PageTitle>Recover wallet — SLIP-39 + age</PageTitle>
 
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="text-white mb-0">📥 Recover wallet</h2>
-        <a href="/" class="btn btn-sm btn-outline-secondary">← Home</a>
-    </div>
+<div class="page-head">
+    <h2>📥 Recover wallet</h2>
+    <a href="/" class="btn btn-sm">← Home</a>
+</div>
 
-    @* Recovery also handles the seed — same airgap indicator as Owner mode
-       (informational here; recovery is not watermark-gated). *@
-    <ConnectivityBanner />
+@* Recovery also handles the seed — same airgap indicator as Owner mode
+   (informational here; recovery is not watermark-gated). *@
+<ConnectivityBanner />
 
-    <div class="row g-3">
-        <div class="col-lg-6">
-            <MnemonicInput @bind-MnemonicText="mnemonicText" />
-            <CiphertextInput @bind-ArmorText="armorText" BinaryChanged="b => binaryFromUpload = b" />
+<div class="split">
+    <div>
+        <MnemonicInput @bind-MnemonicText="mnemonicText" />
+        <CiphertextInput @bind-ArmorText="armorText" BinaryChanged="b => binaryFromUpload = b" />
 
-            @if (errorMessage is not null)
+        @if (errorMessage is not null)
+        {
+            <div class="banner banner-loud">@errorMessage</div>
+        }
+
+        <button class="btn btn-primary btn-block" @onclick="RecoverAsync" disabled="@isRecovering">
+            @if (isRecovering)
             {
-                <div class="alert alert-danger small p-2">@errorMessage</div>
-            }
-
-            <button class="btn btn-success w-100" @onclick="RecoverAsync" disabled="@isRecovering">
-                @if (isRecovering)
-                {
-                    <span class="spinner-border spinner-border-sm me-2"></span> <text>Recovering…</text>
-                }
-                else
-                {
-                    <text>Recover</text>
-                }
-            </button>
-        </div>
-
-        <div class="col-lg-6">
-            @if (recovered is not null)
-            {
-                <RecoveredPayloadView Payload="recovered" />
+                <span class="spinner"></span> <text>Recovering…</text>
             }
             else
             {
-                <div class="card text-muted">
-                    <div class="card-body p-4 text-center">
-                        Provide threshold-many mnemonics and the encrypted payload,
-                        then click Recover.
-                    </div>
-                </div>
+                <text>Recover</text>
             }
-        </div>
+        </button>
+    </div>
+
+    <div>
+        @if (recovered is not null)
+        {
+            <RecoveredPayloadView Payload="recovered" />
+        }
+        else
+        {
+            <div class="panel">
+                <div class="panel-body">
+                    Provide threshold-many mnemonics and the encrypted payload,
+                    then click Recover.
+                </div>
+            </div>
+        }
     </div>
 </div>
 
