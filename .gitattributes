@@ -17,3 +17,15 @@ AppRun        text eol=lf
 # JS served or bundled: normalize to LF for stable diffs and stable hashing.
 *.mjs         text eol=lf
 *.js          text eol=lf
+
+# The BIP-39 English wordlist is hashed at runtime and compared against the SHA-256 of
+# the list as published in bitcoin/bips (2048 lines, LF, trailing newline). A CRLF
+# checkout would change every line and therefore the hash, so Bip39WordList.Load would
+# fail on a Windows clone for a reason that has nothing to do with the contents. Pinned
+# by exact path rather than by *.txt so no other text file inherits the rule by accident.
+Slip39Demo.Core/Bip39/WordList.english.txt  text eol=lf
+
+# The published BIP-39 vectors are kept byte for byte as upstream publishes them and
+# their SHA-256 is asserted, so the suite can show it is running the real vectors and not
+# a copy someone adjusted until the tests went green. Same CRLF reasoning as above.
+Slip39Demo.Tests/Bip39/Vectors/**  text eol=lf

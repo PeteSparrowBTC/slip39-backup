@@ -41,4 +41,14 @@
          #31 (iteration exponent validation). Latest published release. -->
     <PackageReference Include="Xecrets.Slip39" Version="2.3.1668" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The BIP-39 English wordlist, embedded rather than copied next to the
+         assembly: a Blazor WASM build has no file to read, and the AppImage must
+         not carry a separate file that can go missing or be edited on the USB
+         stick. Bip39WordList verifies its SHA-256 on every load, and the
+         resource name it looks for is derived from this path
+         ("Slip39Demo.Core.Bip39.WordList.english.txt"), so moving the file means
+         changing that constant. -->
+    <EmbeddedResource Include="Bip39\WordList.english.txt" />
+  </ItemGroup>
 </Project>

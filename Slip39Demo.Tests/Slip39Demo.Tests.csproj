@@ -35,5 +35,11 @@
          ForeignBackupRoundTripTests. Regenerate with
          tools/independent-verify/make-foreign-fixtures.mjs. -->
     <Content Include="Interop\foreign-backups.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The published BIP-39 test vectors, read at runtime by Bip39MnemonicTests.
+         Kept byte for byte as published (all languages, not just the English set
+         the tests use) and its SHA-256 asserted, so the suite can show it is
+         running the real vectors rather than a copy adjusted until the tests
+         went green. -->
+    <Content Include="Bip39\Vectors\bip39-english-vectors.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
