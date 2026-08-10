@@ -1,16 +1,17 @@
-# Builds the slip39-backup AppImage — the native-window (Photino/WebKitGTK),
-# offline, owner-side artifact for Tails 7+. The AppImage bundles:
-#   - the shared Blazor UI (Slip39Demo.UI) rendered by Photino.Blazor
-#   - a self-contained .NET runtime (linux-x64)
-# System libraries (webkit2gtk-4.1, gtk3, libnotify) are NOT bundled — Tails 7
-# ships them (design constraint: Tails-only target, use what the OS ships).
+# Builds the slip39-backup AppImage: the native-window, offline, owner-side artifact
+# for Tails 7+. The AppImage bundles:
+#   - the Blazor WebAssembly frontend (Slip39Demo.Tauri), embedded by a Tauri v2
+#     shell (src-tauri) rather than a .NET host process
+#   - the pinned age v1.3.1 binary the shell runs as a subprocess to encrypt
+# System libraries (webkit2gtk-4.1, gtk3) are NOT bundled. Tails 7 ships them
+# (design constraint: Tails-only target, use what the OS ships).
 #
 # Runs on every push to main touching app code, and on demand. The artifact is
-# uploaded for download/verification; releases attach it when tagged.
+# uploaded for download and verification; releases attach it when tagged.
 name: Build AppImage
 
 on:
-  # Manual trigger — build an AppImage from any branch on demand.
+  # Manual trigger, build an AppImage from any branch on demand.
   workflow_dispatch:
   # Rebuild whenever app code changes on main.
   push:
@@ -18,8 +19,12 @@ on:
     paths:
       - "Slip39Demo.Core/**"
       - "Slip39Demo.UI/**"
-      - "Slip39Demo.Desktop/**"
+      - "Slip39Demo.Tauri/**"
+      - "src-tauri/**"
       - "packaging/appimage/**"
+      # Directory.Build.props is what "Decide the version" reads for a non-tag
+      # build, and that value ends up in both the window and the filename.
+      - "Directory.Build.props"
       # Tests gate the artifact (see the Test step below), so a change to them
       # must rebuild it.
       - "Slip39Demo.Tests/**"
@@ -42,87 +47,222 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 10
+      - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
 
-      # Gate the artifact on the test suite BEFORE anything is packaged.
+      # ONE place decides what version this build is, and everything downstream reads
+      # it: the frontend is published with it so the window footer shows it, and the
+      # AppImage filename carries it. Deriving it twice is how a file named 2.0.0 ends
+      # up containing a window that says something else.
       #
-      # This workflow publishes a GitHub Release on a v* tag, and that AppImage
-      # is what people run against real seed phrases on an airgapped machine. It
-      # previously built, packaged and released without running a single test:
-      # `dotnet test` and the age conformance vectors lived only in
-      # build-and-release.yml, which does not produce this artifact. A tag push
-      # could therefore ship code whose tests had never run.
+      # A tag is authoritative when there is one, because a tag is a release. Otherwise
+      # Directory.Build.props, which is what an ordinary build of the source reports.
+      - name: Decide the version
+        id: version
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            echo "Building as $VERSION from tag ${GITHUB_REF_NAME}."
+          else
+            VERSION="$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)"
+            echo "Not a tag build; using $VERSION from Directory.Build.props."
+          fi
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "appimage=slip39-backup-${VERSION}-x86_64.AppImage" >> "$GITHUB_OUTPUT"
+
+      # The suite gates the artifact, before anything is packaged. This AppImage is
+      # what people run against real seed phrases on an airgapped machine.
       #
-      # The suite covers SLIP-39 split/combine round-trips, the payload schema,
-      # the BIP-32 fingerprint, the bUnit UI flows, and the C2SP/CCTV age
-      # wire-format conformance vectors. It costs a few minutes; an
-      # unrecoverable backup artifact costs everything.
+      # VersionConsistencyTests runs here, and it is the check that src-tauri/Cargo.toml
+      # agrees with Directory.Build.props. On a tag build the version above can differ
+      # from both, which is intended: the tag is the release.
       - name: Test (gates the released artifact)
         run: dotnet test Slip39Demo.slnx -c Release --verbosity normal
 
-      # Mirror the Tails 7 library set so the smoke test exercises the same
-      # webview stack the target machine has. xvfb provides a headless display.
-      - name: Install WebKitGTK + xvfb (Tails library mirror)
+      - name: Install the Tauri Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-0 libnotify4 xvfb
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libsoup-3.0-dev libssl-dev librsvg2-dev \
+            patchelf build-essential file xvfb xdotool
 
-      # Publish the desktop shell as a self-contained linux-x64 app — the
-      # target machine (Tails) needs no .NET installed. This also materializes
-      # wwwroot/_content/Slip39Demo.UI (shared UI static assets).
-      - name: Publish desktop app (linux-x64, self-contained)
-        run: dotnet publish Slip39Demo.Desktop -c Release -r linux-x64 --self-contained -o pub-desktop
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      # packaging/appimage/build-appimage.sh assembles the AppDir (AppRun,
-      # .desktop, icon), enforces the Tails glibc floor on Photino.Native.so,
-      # and runs appimagetool (FUSE-free mode).
-      - name: Build AppImage
-        run: bash packaging/appimage/build-appimage.sh pub-desktop slip39-backup-x86_64.AppImage
-
-      # Smoke test: SLIP39_SMOKE=1 makes the app exit 0 once the Blazor root
-      # component has rendered inside WebKitGTK — proof that .NET, Photino,
-      # the webview, and the UI assembly all load together. `timeout` guards
-      # against a hang; xvfb-run provides the display GTK needs.
-      - name: Smoke test AppImage (render under xvfb)
+      # Fetch the same age release the AppImage bundles, pinned by version AND
+      # checksum, and point SLIP39_AGE_DIR at it. That variable is what turns on the
+      # one Rust test that runs the real age program end to end.
+      #
+      # Without this step that test skips, and the encrypt path would have no automated
+      # coverage of an actual subprocess anywhere in the repository: the C# side now
+      # talks to a stub, because the subprocess moved to Rust. The pinned values are
+      # duplicated from packaging/appimage/build-appimage.sh deliberately; if they ever
+      # disagree, this step fails on the checksum rather than testing a different
+      # binary from the one that ships.
+      - name: Fetch the pinned age release for the shell tests
         run: |
-          chmod +x slip39-backup-x86_64.AppImage
-          SLIP39_SMOKE=1 timeout 60 xvfb-run -a ./slip39-backup-x86_64.AppImage --appimage-extract-and-run
+          set -euo pipefail
+          curl -fsSLO https://github.com/FiloSottile/age/releases/download/v1.3.1/age-v1.3.1-linux-amd64.tar.gz
+          echo "bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377  age-v1.3.1-linux-amd64.tar.gz" | sha256sum -c -
+          tar -xzf age-v1.3.1-linux-amd64.tar.gz
+          echo "SLIP39_AGE_DIR=$PWD/age" >> "$GITHUB_ENV"
 
-      # Publish a checksum next to the artifact so users can verify the copy
-      # they carry to the airgapped machine.
+      # The frontend must be published before any cargo command: tauri_build::build()
+      # fails when frontendDist does not exist, and cargo test runs build.rs too.
+      - name: Publish the frontend
+        run: dotnet publish Slip39Demo.Tauri -c Release -o publish-tauri -p:Version=${{ steps.version.outputs.value }}
+
+      # The shell's own tests: carrier parsing, the path the age binaries resolve from,
+      # the JSON field names C# reads, and one real run of the real age program. All
+      # things a C# test can no longer reach. SLIP39_AGE_DIR is already in the
+      # environment here, exported by the fetch step above, and frontendDist already
+      # exists, published above, so build.rs does not fail.
+      - name: Test the shell
+        run: cargo test --manifest-path src-tauri/Cargo.toml -- --nocapture
+
+      # Nothing this repository wrote may point at an outside origin, because the app
+      # has to load with the network disconnected.
+      #
+      # Matching is per URL, not per line, and that distinction is load-bearing: the
+      # line-filtering version of this check passed a deliberately planted
+      # https://example.net/probe because it shared a line with an allowed URL, and
+      # dropping the line hid it. Fixed in pages.yml at e90faa0; the same shape is used
+      # here so the two cannot diverge.
+      #
+      # Unlike the demo, this build has no connectivity.js probe endpoints to allow:
+      # the airgap check is the is_online command in Rust, reading /sys/class/net. If
+      # this allowlist ever needs a probe URL added, something has gone wrong.
+      - name: Check the published app depends on no external origin
+        run: |
+          set -euo pipefail
+
+          # Loopback: the app's own instructions mention serving it locally.
+          ALLOWED='^https?://(127\.0\.0\.1|localhost)(:[0-9]+)?(/|$)'
+          # The repository link on the landing page: an anchor to click on another machine.
+          ALLOWED="$ALLOWED"'|^https://github\.com/PeteSparrowBTC(/|$)'
+          # XML namespace identifiers, which are names rather than addresses to fetch.
+          ALLOWED="$ALLOWED"'|^https?://(www\.)?w3\.org/(2000/svg|1999/xhtml|1999/xlink)'
+
+          urls=$(grep -rIhoE "https?://[^\"'\''[:space:])>]+" publish-tauri/wwwroot \
+                   --exclude-dir=_framework \
+                   --exclude=independent-verify.min.js \
+                 | sed 's/[.,;]*$//' | sort -u || true)
+
+          offenders=$(printf '%s\n' "$urls" | grep -vE "$ALLOWED" | grep -v '^$' || true)
+
+          if [ -n "$offenders" ]; then
+            echo "Not on the allowlist:"
+            printf '%s\n' "$offenders" | while read -r url; do
+              echo "  $url"
+              grep -rIn --fixed-strings "$url" publish-tauri/wwwroot \
+                --exclude-dir=_framework --exclude=independent-verify.min.js \
+                | sed 's/^/      /' || true
+            done
+            echo "::error::The published app references an external origin that is not on the allowlist. If it is deliberate, add it to this step and say why it is safe."
+            exit 1
+          fi
+          echo "No external dependency."
+
+      - name: Install the Tauri CLI
+        run: cargo install tauri-cli --version "^2.0" --locked
+
+      # --no-bundle: Tauri's own bundler copies the WebKitGTK stack in and triples the
+      # size. Tails ships those libraries.
+      - name: Build the shell
+        run: cargo tauri build --no-bundle --manifest-path src-tauri/Cargo.toml
+
+      - name: Build the AppImage
+        run: bash packaging/appimage/build-appimage.sh src-tauri/target/release/slip39-backup "${{ steps.version.outputs.appimage }}"
+
+      # Proves three things: the AppImage mounts and executes, GTK and WebKitGTK
+      # initialise against the Tails library set, and a window with the expected title
+      # exists. That last part is what a bare "process is alive" check misses: a Tauri
+      # binary that cannot find a webview stays running with no window at all. It runs
+      # before the checksum and release steps, gating them the same way the test suite
+      # does: a broken artifact should never reach a release.
+      #
+      # WHAT THIS DOES NOT PROVE: that Blazor started inside the webview. The old
+      # SLIP39_SMOKE hook did prove that, and nothing here replaces it, so this is a
+      # genuine reduction. A CSP that blocked wasm-unsafe-eval would pass this step and
+      # produce an empty window; Slip39Demo.Tests/Packaging/ShellSecurityConfigTests.cs
+      # pins the CSP and withGlobalTauri settings whose absence causes exactly that, and
+      # it runs in the Test step above, so it is a partial mitigation, not a substitute:
+      # it catches a config regression, not a runtime one. A manual run on real Tails,
+      # and a WebDriver check against the running window, are the checks that close the
+      # remaining gap, and neither is in scope here.
+      - name: Smoke test the AppImage under xvfb
+        run: |
+          set -euo pipefail
+          chmod +x "${{ steps.version.outputs.appimage }}"
+
+          Xvfb :99 -screen 0 1280x1024x24 >/dev/null 2>&1 &
+          XVFB_PID=$!
+          export DISPLAY=:99
+          sleep 2
+
+          ./"${{ steps.version.outputs.appimage }}" --appimage-extract-and-run &
+          APP_PID=$!
+
+          FOUND=""
+          for _ in $(seq 1 30); do
+            if xdotool search --name "Seed Phrase Storage" >/dev/null 2>&1; then
+              FOUND=yes
+              break
+            fi
+            kill -0 "$APP_PID" 2>/dev/null || break
+            sleep 1
+          done
+
+          if ! kill -0 "$APP_PID" 2>/dev/null; then
+            echo "::error::the AppImage exited on its own before a window appeared"
+            kill "$XVFB_PID" 2>/dev/null || true
+            exit 1
+          fi
+          if [ -z "$FOUND" ]; then
+            echo "::error::no window titled 'Seed Phrase Storage' appeared within 30 seconds"
+            kill "$APP_PID" "$XVFB_PID" 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "A window appeared and the process was still running: $(xdotool search --name 'Seed Phrase Storage' getwindowname %@ | head -1)"
+          kill "$APP_PID" "$XVFB_PID" 2>/dev/null || true
+
+      # Publish a checksum next to the artifact so users can verify the copy they carry
+      # to the airgapped machine. Run in the same directory as the file, so what is
+      # recorded is a bare filename and sha256sum -c works wherever the pair is copied.
       - name: Checksum
-        run: sha256sum slip39-backup-x86_64.AppImage | tee slip39-backup-x86_64.AppImage.sha256
+        run: sha256sum "${{ steps.version.outputs.appimage }}" | tee "${{ steps.version.outputs.appimage }}.sha256"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: slip39-backup-AppImage
+          name: slip39-backup-${{ steps.version.outputs.value }}-AppImage
           path: |
-            slip39-backup-x86_64.AppImage
-            slip39-backup-x86_64.AppImage.sha256
+            ${{ steps.version.outputs.appimage }}
+            ${{ steps.version.outputs.appimage }}.sha256
 
-      # On a version tag (v*), publish the AppImage + checksum to a GitHub
-      # Release so users have a stable, downloadable, checksum-verified artifact.
+      # On a version tag, publish the AppImage and its checksum to a GitHub Release so
+      # users have a stable, downloadable, checksum-verified artifact.
       - name: Publish to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            slip39-backup-x86_64.AppImage
-            slip39-backup-x86_64.AppImage.sha256
+            ${{ steps.version.outputs.appimage }}
+            ${{ steps.version.outputs.appimage }}.sha256
           fail_on_unmatched_files: true
           body: |
-            Offline SLIP-39 + age wallet-backup tool — a single native-window
-            AppImage for Tails 7+ (no browser, no server, no Tor interaction).
+            Offline SLIP-39 + age wallet-backup tool: a single native-window AppImage
+            for Tails 7+. No browser, no server, no port bound, no Tor interaction.
 
             **Verify before use:**
             ```
-            sha256sum -c slip39-backup-x86_64.AppImage.sha256
-            chmod +x slip39-backup-x86_64.AppImage
-            ./slip39-backup-x86_64.AppImage
+            sha256sum -c ${{ steps.version.outputs.appimage }}.sha256
+            chmod +x ${{ steps.version.outputs.appimage }}
+            ./${{ steps.version.outputs.appimage }}
             ```
-            Run it on an airgapped machine (Tails 7+) to produce real backups;
-            the tool watermarks anything generated while online as INSECURE-TEST.
+            Run it on an airgapped machine (Tails 7+) to produce real backups; the tool
+            watermarks anything generated while online as INSECURE-TEST.
