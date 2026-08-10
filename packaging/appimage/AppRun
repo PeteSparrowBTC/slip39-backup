@@ -1,6 +1,20 @@
 #!/bin/sh
-# AppImage entrypoint: exec the native-window binary (Photino/WebKitGTK).
-# No server, no browser, no ports — the window IS the app. Requires Tails 7+
-# (Debian 13: glibc >= 2.38, libwebkit2gtk-4.1).
+# AppImage entry point.
+#
+# Deliberately thin, and deliberately without a pre-flight check. An earlier AppRun in
+# a sibling repository ran ldconfig to look for libwebkit2gtk, could not find ldconfig
+# because it lives in /usr/sbin and is not on a normal user's PATH, and refused to
+# launch a working application on Tails. A check that can produce a false negative is
+# worse than no check: if a library really is missing, the dynamic linker names it far
+# more precisely than a shell script can.
+#
+# Nothing is bundled beyond the application itself and the age binaries. Tails ships
+# libwebkit2gtk-4.1, libgtk-3-0t64, libsoup-3.0-0 and librsvg2-2, verified against the
+# Tails package manifest rather than assumed.
+#
+# The frontend is not here either: Tauri embeds the published Blazor output into the
+# executable at compile time.
+
 HERE="$(dirname "$(readlink -f "$0")")"
-exec "$HERE/usr/bin/Slip39Demo.Desktop" "$@"
+
+exec "$HERE/usr/bin/slip39-backup" "$@"

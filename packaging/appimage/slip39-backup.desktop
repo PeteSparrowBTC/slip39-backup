@@ -2,7 +2,7 @@
 Type=Application
 Name=SLIP39 Backup
 Comment=Offline SLIP-39 + age seed phrase backup tool (native window)
-Exec=AppRun
+Exec=slip39-backup
 Icon=slip39-backup
 Categories=Utility;Security;
 Terminal=false

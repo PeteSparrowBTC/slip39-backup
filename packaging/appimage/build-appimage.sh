@@ -1,45 +1,54 @@
 #!/usr/bin/env bash
-# Builds slip39-backup-x86_64.AppImage — the native-window (Photino/WebKitGTK)
-# offline artifact for Tails 7+. Run on Linux (CI ubuntu runner, or WSL for
-# local builds; WSL only needs bash + curl — dotnet publish can run on Windows).
+# Builds slip39-backup-x86_64.AppImage: the offline, native-window artifact for
+# Tails 7+. Run on Linux (a CI ubuntu runner, or WSL for local builds).
 #
 # Usage:
-#   ./build-appimage.sh <published-desktop-dir> <output.AppImage>
+#   ./build-appimage.sh <tauri-release-binary> <output.AppImage>
 #
-# <published-desktop-dir> must be a linux-x64 self-contained publish:
-#   dotnet publish Slip39Demo.Desktop -c Release -r linux-x64 --self-contained -o pub-desktop
+# The binary comes from:
+#   dotnet publish Slip39Demo.Tauri -c Release -o publish-tauri
+#   cargo tauri build --no-bundle --manifest-path src-tauri/Cargo.toml
 #
-# System libraries (webkit2gtk-4.1, gtk3, libnotify) are NOT bundled — Tails 7
-# ships them; that is a deliberate design constraint (Tails-only target).
+# The output name carries the version, for example
+# slip39-backup-2.0.0-x86_64.AppImage. The caller supplies it rather than this script
+# deriving it, so there is one place that decides what the version is: appimage.yml
+# takes it from the tag or from Directory.Build.props and uses the same value for
+# `dotnet publish -p:Version=` and for this filename. A name and a window footer that
+# disagree would be worse than neither carrying a version at all.
+#
+# System libraries (webkit2gtk-4.1, gtk3) are NOT bundled. Tails ships them, and
+# bundling a browser engine known to be present triples the size and pins a rendering
+# stack. See PeteSparrowBTC/tails-appimage.
 set -euo pipefail
 
-PUB_DIR="${1:?usage: build-appimage.sh <published-desktop-dir> <output.AppImage>}"
-OUTPUT="${2:?usage: build-appimage.sh <published-desktop-dir> <output.AppImage>}"
+BINARY="${1:?usage: build-appimage.sh <tauri-release-binary> <output.AppImage>}"
+OUTPUT="${2:?usage: build-appimage.sh <tauri-release-binary> <output.AppImage>}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-[ -f "$PUB_DIR/Slip39Demo.Desktop" ]  || { echo "error: $PUB_DIR/Slip39Demo.Desktop missing (linux-x64 publish?)"; exit 1; }
-[ -f "$PUB_DIR/Photino.Native.so" ]   || { echo "error: Photino.Native.so missing from publish"; exit 1; }
-[ -d "$PUB_DIR/wwwroot/_content/Slip39Demo.UI" ] || { echo "error: wwwroot/_content/Slip39Demo.UI missing (publish, not build?)"; exit 1; }
+[ -x "$BINARY" ] || { echo "error: $BINARY missing or not executable"; exit 1; }
 
-# Guard the Tails glibc floor: Tails 7 (Debian 13) ships glibc 2.41. If a
-# Photino bump ever demands newer symbols, fail the build here instead of
-# shipping an AppImage that dies on the user's stick with GLIBC_x not found.
-MAX_GLIBC="$(objdump -T "$PUB_DIR/Photino.Native.so" | grep -o 'GLIBC_[0-9.]*' | sort -Vu | tail -1 | cut -d_ -f2)"
-if [ "$(printf '%s\n' "$MAX_GLIBC" 2.41 | sort -V | tail -1)" != "2.41" ]; then
-  echo "error: Photino.Native.so requires glibc $MAX_GLIBC > 2.41 (Tails 7)"; exit 1
+# The check that matters on Tails. Debian 13 dropped the webkit2gtk-4.0 series, so a
+# binary linking libwebkit2gtk-4.0.so.37 will not start there, and the failure looks
+# like an application bug rather than a packaging one. Fail here instead.
+NEEDED="$(readelf -d "$BINARY" | grep NEEDED || true)"
+if echo "$NEEDED" | grep -q "libwebkit2gtk-4\.0"; then
+  echo "error: $BINARY links webkit2gtk-4.0, which Tails 7 does not ship"; exit 1
 fi
+if ! echo "$NEEDED" | grep -q "libwebkit2gtk-4\.1"; then
+  echo "error: $BINARY does not link webkit2gtk-4.1; check the build environment"; exit 1
+fi
+echo "Links webkit2gtk-4.1, which Tails ships."
 
 # ── Assemble the AppDir ────────────────────────────────────────────────
 APPDIR="$WORK/AppDir"
 mkdir -p "$APPDIR/usr/bin"
 cp "$SCRIPT_DIR/AppRun" "$APPDIR/AppRun"
 cp "$SCRIPT_DIR/slip39-backup.desktop" "$APPDIR/"
-# Icon: reuse the app favicon (appimagetool requires an icon at the root).
-cp "$PUB_DIR/wwwroot/_content/Slip39Demo.UI/favicon.png" "$APPDIR/slip39-backup.png"
-cp -r "$PUB_DIR/." "$APPDIR/usr/bin/"
-chmod +x "$APPDIR/AppRun" "$APPDIR/usr/bin/Slip39Demo.Desktop"
+cp "$SCRIPT_DIR/../../Slip39Demo.UI/wwwroot/favicon.png" "$APPDIR/slip39-backup.png"
+cp "$BINARY" "$APPDIR/usr/bin/slip39-backup"
+chmod +x "$APPDIR/AppRun" "$APPDIR/usr/bin/slip39-backup"
 
 # ── Bundle the official age binary ─────────────────────────────────────
 # The app encrypts by running this program rather than the AgeSharp library
