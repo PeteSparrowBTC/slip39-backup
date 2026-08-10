@@ -24,12 +24,21 @@ public class RecoveredPayloadViewTests : TestContext
 
         var cut = RenderComponent<RecoveredPayloadView>(p => p.Add(x => x.Payload, payload));
 
-        cut.Markup.Should().NotContain("abandon abandon abandon abandon about");
+        cut.Markup.Should().NotContain("abandon");
         cut.Markup.Should().Contain("Reveal seed words");
 
-        cut.Find("button.btn-outline-warning").Click();
+        // Selects the top-level reveal button by id rather than its CSS class:
+        // RecoveredPayloadView has a second, identically-labelled "Reveal seed
+        // words" button per cosigner, so a class or text selector is ambiguous
+        // and a class rename (as happened when this component was restyled)
+        // would silently break a class-based selector anyway.
+        cut.Find("#reveal-top-seed").Click();
 
-        cut.Markup.Should().Contain("abandon abandon abandon abandon about");
+        // The revealed seed renders as a numbered .words list (one <li> per
+        // word), not a single text blob, so the contract is checked word by
+        // word rather than as one contiguous substring.
+        cut.FindAll("ol.words li").Select(li => li.TextContent).Should()
+            .Equal("abandon", "abandon", "abandon", "abandon", "about");
     }
 
     [Fact]
