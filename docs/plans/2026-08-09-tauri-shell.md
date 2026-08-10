@@ -681,7 +681,7 @@ git commit -m "Add the invoke seam and the airgap probe, reading carrier state i
 - Consumes: `ITauriInterop` from Task 2.
 - Produces: nothing later tasks depend on.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `Slip39Demo.Tests/Tauri/TauriFileDownloaderTests.cs`:
 
@@ -723,13 +723,13 @@ public class TauriFileDownloaderTests
 }
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `dotnet test Slip39Demo.slnx --filter FullyQualifiedName~TauriFileDownloaderTests`
 
 Expected: compile error, `TauriFileDownloader` does not exist.
 
-- [ ] **Step 3: Write the C# side**
+- [x] **Step 3: Write the C# side**
 
 `Slip39Demo.Tauri/Services/TauriFileDownloader.cs`:
 
@@ -753,13 +753,13 @@ public sealed class TauriFileDownloader(ITauriInterop interop) : IFileDownloader
 }
 ```
 
-- [ ] **Step 4: Run the test and watch it pass**
+- [x] **Step 4: Run the test and watch it pass**
 
 Run: `dotnet test Slip39Demo.slnx --filter FullyQualifiedName~TauriFileDownloaderTests`
 
 Expected: PASS.
 
-- [ ] **Step 5: Write the Rust side**
+- [x] **Step 5: Write the Rust side**
 
 `src-tauri/src/save.rs`:
 
@@ -806,7 +806,7 @@ pub async fn save_file(
 Tauri converts `snake_case` command parameters from `camelCase` on the JavaScript
 side, which is why the C# anonymous object sends `suggestedName` and `bytesB64`.
 
-- [ ] **Step 6: Register the plugin, the command and the permission**
+- [x] **Step 6: Register the plugin, the command and the permission**
 
 In `main.rs`, add `mod save;`, add the plugin, and extend the handler list:
 
@@ -837,7 +837,18 @@ Generate a practice backup, confirm a save dialog appears, save it, and confirm 
 file exists at the chosen path and opens as a zip. Cancel once, and confirm the app
 does not report an error.
 
-- [ ] **Step 8: Commit**
+Not done on this machine: the `IFileDownloader` registration is wired (see
+`Program.cs`), and `cargo build --release --manifest-path src-tauri/Cargo.toml`
+succeeds with the dialog and fs plugins registered and `save_file` in the handler
+list, but no window was opened and no dialog was ever shown. This machine's WSL has
+no dotnet and cannot install `libwebkit2gtk-4.1-dev` without a password. The cancel
+path, which needs a click nobody made, is covered instead by
+`Tolerates_a_null_result_from_a_cancelled_dialog` in
+`Slip39Demo.Tests/Tauri/TauriFileDownloaderTests.cs`, which asserts that a null
+result (what `save_file`'s `Ok(None)` becomes across the interop boundary) does not
+throw.
+
+- [x] **Step 8: Commit**
 
 ```bash
 git add src-tauri Slip39Demo.Tauri Slip39Demo.Tests/Tauri

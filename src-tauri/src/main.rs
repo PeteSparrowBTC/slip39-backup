@@ -19,14 +19,23 @@
 // and always go through the ACL regardless of this, so they will need capability
 // entries. If this crate ever gains its own permissions/*.toml for an app command,
 // every app command, including is_online, starts needing one too.
+//
+// Task 3 bears this out: save_file is an app command, registered through
+// generate_handler! and given no entry, and needs none. The dialog plugin's own
+// save command, which save_file calls into via DialogExt, carries the "plugin:dialog"
+// prefix and is why src-tauri/capabilities/default.json exists at all, granting
+// "dialog:allow-save".
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod net;
+mod save;
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![net::is_online])
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .invoke_handler(tauri::generate_handler![net::is_online, save::save_file])
         .run(tauri::generate_context!())
         .expect("slip39-backup: failed to start the window");
 }
