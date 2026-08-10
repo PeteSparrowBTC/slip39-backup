@@ -1520,6 +1520,153 @@ git commit -m "Draw the heading icons as inline SVG instead of emoji"
 
 ---
 
+## Task 10: Three regressions that only looking at the page revealed
+
+Found by screenshotting the landing page after Task 9. None of them is catchable by the
+suite, because no test asserts on layout, which is exactly the limitation this plan's
+self-review notes predicted.
+
+**Files:**
+- Modify: `Slip39Demo.UI/wwwroot/css/app.css`
+- Modify: `Slip39Demo.UI/Pages/Index.razor` (one class name)
+- Modify: `Slip39Demo.Tests/Ui/StylesheetContractTests.cs` (contract grows to 38, plus one new test)
+
+**Interfaces:**
+- Consumes: `panel`, `panel-body`, `btn` from Task 1.
+- Produces: the CSS class `choice-pair`.
+
+### The three
+
+**1. A focus ring sits around the `h1` on every page load.** `Slip39Demo.UI/App.razor:4` has
+`<FocusOnNavigate RouteData="@routeData" Selector="h1" />`, so Blazor moves focus to the heading
+after every navigation. The stylesheet on `origin/main` had `h1:focus { outline: none; }` at line
+164 for precisely this reason, and the Task 1 rewrite dropped it.
+
+Do not restore it verbatim. `outline: none` on `:focus` removes the indicator for keyboard users
+too. Suppress it only for the programmatic case:
+
+```css
+/* App.razor focuses the h1 after every navigation (FocusOnNavigate), so without this
+   a ring is drawn around the heading on every page load. Scoped to :not(:focus-visible)
+   rather than plain :focus, because a keyboard user who tabs to the heading should still
+   get an indicator: programmatic focus on a tabindex="-1" element does not match
+   :focus-visible, a real keyboard interaction does. */
+h1:focus:not(:focus-visible) { outline: none; }
+```
+
+**2. The two landing cards are unequal heights, and 3. unequal widths.** The old markup used
+`card h-100` to equalise heights. Task 4 put the cards in `.split`, which is the wrong container
+for them twice over: it is `7fr 5fr`, correct for Owner's form-plus-action layout but wrong for
+two peer cards, and it sets `align-items: start`, which Owner's sticky column needs and which
+stops these cards stretching to match.
+
+One new class fixes both, and leaves `.split` alone for the page that needs it:
+
+```css
+/* Two peer panels, equal width and equal height, for a page that offers a choice between
+   two routes. Deliberately not .split: that one is 7fr 5fr with align-items:start, because
+   Owner's right column is a sticky action panel that must not stretch. Grid's default
+   align-items:stretch is what equalises the heights here, replacing Bootstrap's h-100.
+   The button is pushed to the bottom so the two cards' buttons line up even when their
+   descriptions differ in length. */
+.choice-pair {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+
+@media (min-width: 62rem) {
+    .choice-pair { grid-template-columns: 1fr 1fr; }
+}
+
+.choice-pair > .panel {
+    margin-bottom: 0;
+    display: flex;
+}
+
+.choice-pair .panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+    flex: 1;
+}
+
+.choice-pair .panel-body .btn {
+    margin-top: auto;
+    align-self: flex-start;
+}
+```
+
+- [ ] **Step 1: Write the failing test**
+
+Add to `Slip39Demo.Tests/Ui/StylesheetContractTests.cs`:
+
+```csharp
+    // A regression guard for something a test suite cannot otherwise see. App.razor
+    // focuses the h1 after every navigation, so without a rule suppressing the ring
+    // there is a box around the heading on every page load. The Task 1 rewrite of this
+    // stylesheet dropped the rule that origin/main had, and only a screenshot caught it.
+    //
+    // The :not(:focus-visible) part is asserted deliberately: a bare
+    // "h1:focus { outline: none }" would pass a looser test while removing the focus
+    // indicator from keyboard users as well.
+    [Fact]
+    public void Programmatic_h1_focus_does_not_draw_a_ring_but_keyboard_focus_still_does()
+    {
+        Assert.Matches(
+            new Regex(@"h1:focus:not\(:focus-visible\)\s*\{[^}]*outline:\s*none"),
+            AppCss());
+    }
+```
+
+Also add `choice-pair` to the contract name list, taking it from 37 names to 38.
+
+- [ ] **Step 2: Run and watch it fail**
+
+Run: `dotnet test Slip39Demo.slnx --filter FullyQualifiedName~StylesheetContractTests`
+
+Expected: the new focus test fails, and the contract theory fails for `choice-pair`.
+
+- [ ] **Step 3: Add the CSS**
+
+Put `h1:focus:not(:focus-visible)` next to the other heading rules near the top of `app.css`,
+and the `.choice-pair` block in the layout section beside `.split`, so the comment contrasting
+the two sits where somebody choosing between them will read it.
+
+- [ ] **Step 4: Point the landing page at the new class**
+
+In `Slip39Demo.UI/Pages/Index.razor`, change the wrapper of the two cards from
+`<div class="split">` to `<div class="choice-pair">`. Change nothing else on the page. Do not
+change `Owner.razor` or `Recoverer.razor`, which keep `.split`.
+
+- [ ] **Step 5: Run the suite**
+
+Run: `dotnet test Slip39Demo.slnx -c Release`
+
+Expected: PASS.
+
+- [ ] **Step 6: Look at all three fixes, because that is the only way to check them**
+
+Serve the app and confirm, with a screenshot of each:
+
+- The landing page: the two cards are the same width and the same height, and their buttons sit
+  on the same line as each other. Save to `task-10-landing.png`.
+- No ring around the heading after loading the landing page by clicking, then after navigating to
+  `/owner` and back. Then check the accessible half still works: press Tab from the address bar
+  and confirm a focus indicator does appear on something. If the heading ring is still visible,
+  report it rather than reaching for `outline: none` on plain `:focus`.
+- `/owner` still has its 7fr 5fr split with the generate panel sticky on scroll, unchanged. Save
+  to `task-10-owner.png`.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add Slip39Demo.UI Slip39Demo.Tests/Ui
+git commit -m "Fix three layout regressions a screenshot found"
+```
+
+---
+
 ## Self-review notes
 
 Checked against the spec's styling section:
