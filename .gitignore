@@ -84,3 +84,6 @@ third_party/
 .cargoprobe/
 publish-tauri/
 src-tauri/target/
+# JSON schemas tauri-build regenerates from tauri.conf.json on every build, purely to
+# give editors autocomplete on capability files. Not consumed by anything checked in.
+src-tauri/gen/schemas/

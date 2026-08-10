@@ -1,0 +1,21 @@
+<!-- The AppImage frontend. Deliberately separate from Slip39Demo.Web rather than one
+     build that detects Tauri at runtime: this project never references
+     AgeSharpPayloadEncryptor, so the artifact that touches real seed phrases cannot
+     fall back to encrypting in-process. See
+     docs/specs/2026-08-09-tauri-shell-and-styling-design.md. -->
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.0" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Slip39Demo.UI\Slip39Demo.UI.csproj" />
+  </ItemGroup>
+</Project>

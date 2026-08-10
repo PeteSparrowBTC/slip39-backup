@@ -1,0 +1,40 @@
+# The desktop shell. Its whole job is to open a window, point a WebView at the
+# published Blazor app, and provide the three things WebAssembly cannot do for itself.
+# No cryptography and no application logic live here.
+
+[package]
+name = "slip39-backup"
+# Kept equal to <Version> in Directory.Build.props, which is what the UI displays and
+# what names the AppImage. VersionConsistencyTests fails if the two drift, because a
+# window reporting one version inside a file named after another is the kind of
+# discrepancy that makes somebody distrust a backup they should trust.
+version = "2.0.0"
+edition = "2021"
+rust-version = "1.77"
+description = "Offline SLIP-39 + age wallet backup, desktop shell"
+license = "MIT"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+base64 = "0.22"
+sha2 = "0.10"
+
+# Only for the test that pins the JSON field names the C# side reads. Not linked into
+# the shipped binary.
+[dev-dependencies]
+serde_json = "1"
+
+# Small and stripped: this is a window, not a program, and the AppImage should stay
+# reviewable in size as well as in source.
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
