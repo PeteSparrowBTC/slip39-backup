@@ -166,13 +166,25 @@ jobs:
           fi
           echo "No external dependency."
 
-      - name: Install the Tauri CLI
-        run: cargo install tauri-cli --version "^2.0" --locked
-
-      # --no-bundle: Tauri's own bundler copies the WebKitGTK stack in and triples the
-      # size. Tails ships those libraries.
+      # Plain cargo, and no tauri-cli at all. The first run of this workflow failed here on
+      # `cargo tauri build --no-bundle --manifest-path src-tauri/Cargo.toml`, because the
+      # Tauri CLI does not accept --manifest-path; it locates tauri.conf.json from the
+      # working directory.
+      #
+      # The fix is not to correct the invocation, because the CLI was not earning its place.
+      # For this configuration it would run a beforeBuildCommand (there is none), check that
+      # frontendDist exists (build.rs already fails without it), build, and then bundle,
+      # which is off: bundle.active is false and Tauri's bundler would copy the WebKitGTK
+      # stack in and triple the size, while Tails ships those libraries. So it reduces to
+      # cargo build --release. Dropping it removes `cargo install tauri-cli --locked`, a
+      # multi-minute compile of a tool used for nothing, and one more dependency in the
+      # supply chain of an artifact people run against real seed phrases.
+      #
+      # It also makes CI run the same command a contributor runs locally, which is how this
+      # mistake survived to a CI run in the first place: the documented command was one
+      # nobody had executed.
       - name: Build the shell
-        run: cargo tauri build --no-bundle --manifest-path src-tauri/Cargo.toml
+        run: cargo build --release --manifest-path src-tauri/Cargo.toml
 
       - name: Build the AppImage
         run: bash packaging/appimage/build-appimage.sh src-tauri/target/release/slip39-backup "${{ steps.version.outputs.appimage }}"

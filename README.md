@@ -201,7 +201,7 @@ See [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md) for the complete guide.
 git clone https://github.com/PeteSparrowBTC/slip39-backup.git
 cd slip39-backup
 dotnet publish Slip39Demo.Tauri -c Release -o publish-tauri
-cargo tauri build --no-bundle --manifest-path src-tauri/Cargo.toml
+cargo build --release --manifest-path src-tauri/Cargo.toml
 bash packaging/appimage/build-appimage.sh src-tauri/target/release/slip39-backup slip39-backup-2.0.0-x86_64.AppImage
 ```
 

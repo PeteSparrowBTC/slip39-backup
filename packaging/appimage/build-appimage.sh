@@ -8,7 +8,7 @@
 #
 # The binary comes from:
 #   dotnet publish Slip39Demo.Tauri -c Release -o publish-tauri
-#   cargo tauri build --no-bundle --manifest-path src-tauri/Cargo.toml
+#   cargo build --release --manifest-path src-tauri/Cargo.toml
 #
 # The output name carries the version, for example
 # slip39-backup-2.0.0-x86_64.AppImage. The caller supplies it rather than this script
@@ -96,9 +96,13 @@ if [ "$ACTUAL_SHA" != "$AGE_SHA256" ]; then
 fi
 echo "Verified age tarball against its pinned checksum."
 
-# Lands at usr/bin/age/, which is AppContext.BaseDirectory + "age" at runtime,
-# where NativeAgeEncryptor looks. age-plugin-batchpass must travel with it: age
-# has no way to take a passphrase without a terminal otherwise.
+# Lands at usr/bin/age/, beside the executable, which is where src-tauri/src/age.rs
+# looks: age_dir_for() takes current_exe() and joins "age", and inside a mounted
+# AppImage current_exe() is /tmp/.mount_xxxx/usr/bin/slip39-backup, so the sibling
+# directory resolves without reading APPDIR. If this path and that function ever
+# disagree, the app refuses to generate and says the bundled age program is missing.
+# age-plugin-batchpass must travel with it: age has no way to take a passphrase
+# without a terminal otherwise.
 tar -xzf "$WORK/$AGE_TARBALL" -C "$WORK"
 mkdir -p "$APPDIR/usr/bin/age"
 cp "$WORK/age/age" "$WORK/age/age-plugin-batchpass" "$APPDIR/usr/bin/age/"
