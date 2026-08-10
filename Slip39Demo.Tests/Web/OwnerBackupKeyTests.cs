@@ -77,10 +77,13 @@ public class OwnerBackupKeyTests : TestContext
     {
         public List<(string Filename, byte[] Bytes, string Mime)> Calls { get; } = new();
 
-        public ValueTask DownloadAsync(string filename, byte[] bytes, string mimeType)
+        // Every test in this file exercises the download happening, not the user
+        // cancelling it, so this fake always reports success. The cancel path has
+        // its own coverage in OwnerFormValidationTests.
+        public ValueTask<bool> DownloadAsync(string filename, byte[] bytes, string mimeType)
         {
             Calls.Add((filename, bytes, mimeType));
-            return ValueTask.CompletedTask;
+            return ValueTask.FromResult(true);
         }
     }
 

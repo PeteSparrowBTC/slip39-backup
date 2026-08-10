@@ -36,18 +36,14 @@ public class TauriFileDownloaderTests
 
     // The cancel path. save_file returns Ok(None) when the user dismisses the dialog,
     // which crosses the interop boundary as a null string. DownloadAsync must treat
-    // that as a completed call, not throw: the caller asked to save and the user said
-    // no, which is not a failure the frontend needs to report.
+    // that as a normal outcome, not throw, and it must now say so in its return value:
+    // false, meaning nothing was saved, so the caller (the Owner page) knows not to
+    // claim a backup was created.
     //
-    // What this does and does not prove, because a review pointed out the first draft of
-    // this comment claimed more than the test delivers. DownloadAsync discards the returned
-    // path, so there is no null branch to regress and the test cannot fail today whatever
-    // the null handling is. It is a guard against a future edit, not a demonstration that
-    // the current code got something right: if someone later reads the result, to show the
-    // saved path in the UI or to decide the save succeeded, this fails the moment they
-    // dereference it without checking. That is worth keeping and is not worth overstating.
-    // The cancel path as a whole is not covered by any test that runs a dialog, because no
-    // dialog can be opened on the machine this was built on.
+    // This used to be a test that could not fail: DownloadAsync discarded the returned
+    // path, so there was no null branch to regress whatever the handling was. That is
+    // exactly why the return value exists now. This asserts the real value instead of
+    // only the absence of an exception.
     sealed class NullReturningInterop : ITauriInterop
     {
         public ValueTask<T> InvokeAsync<T>(string command, object? args = null) =>
@@ -55,14 +51,55 @@ public class TauriFileDownloaderTests
     }
 
     [Fact]
-    public async Task Tolerates_a_null_result_from_a_cancelled_dialog()
+    public async Task A_null_result_from_a_cancelled_dialog_is_reported_as_not_saved()
     {
-        var exception = await Record.ExceptionAsync(() =>
-            new TauriFileDownloader(new NullReturningInterop())
-                .DownloadAsync("backup.zip", [1, 2, 3], "application/zip")
-                .AsTask());
+        var saved = await new TauriFileDownloader(new NullReturningInterop())
+            .DownloadAsync("backup.zip", [1, 2, 3], "application/zip");
 
-        Assert.Null(exception);
+        Assert.False(saved);
+    }
+
+    // A path came back, so save_file claims the bytes are on disk. This is the half
+    // of the contract the interface doc calls out explicitly: read the file to confirm
+    // rather than trusting the string. When the path really does point at a file, that
+    // check must pass and the result must be true.
+    sealed class PathReturningInterop(string? path) : ITauriInterop
+    {
+        public ValueTask<T> InvokeAsync<T>(string command, object? args = null) =>
+            ValueTask.FromResult((T)(object?)path!);
+    }
+
+    [Fact]
+    public async Task Reports_saved_when_the_returned_path_is_a_real_file()
+    {
+        var file = Path.Combine(Path.GetTempPath(), $"slip39-tauri-downloader-{Guid.NewGuid()}.zip");
+        File.WriteAllBytes(file, [1, 2, 3]);
+        try
+        {
+            var saved = await new TauriFileDownloader(new PathReturningInterop(file))
+                .DownloadAsync("backup.zip", [1, 2, 3], "application/zip");
+
+            Assert.True(saved);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    // The other half of "read to confirm": a non-null path is not enough on its own.
+    // If save_file's contract were ever broken and returned a path to something that
+    // was never actually written, this must still report false rather than pass an
+    // unchecked claim through to the UI.
+    [Fact]
+    public async Task Reports_not_saved_when_the_returned_path_does_not_exist()
+    {
+        var missing = Path.Combine(Path.GetTempPath(), $"slip39-does-not-exist-{Guid.NewGuid()}.zip");
+
+        var saved = await new TauriFileDownloader(new PathReturningInterop(missing))
+            .DownloadAsync("backup.zip", [1, 2, 3], "application/zip");
+
+        Assert.False(saved);
     }
 
     // The real payload is a zip, whose bytes are not valid UTF-8 text. Base64 has to

@@ -250,6 +250,36 @@
                     </div>
                 }
 
+                @* The save dialog was cancelled or closed: no file exists anywhere. The
+                   backup already generated is kept in pendingOutcome/pendingFileName rather
+                   than discarded, so "Save again" retries with the identical bytes and name
+                   instead of regenerating, which would mint a different key and different
+                   shares. Text carries the state, not just banner-warn's colour: a reader
+                   must be able to tell what happened from the words alone. *@
+                @if (saveCancelled)
+                {
+                    <div class="banner banner-warn">
+                        <strong>Nothing was saved.</strong>
+                        <p class="hint">
+                            The save dialog closed before a file was written, so nothing
+                            changed on disk. The backup already generated still exists and
+                            has not changed; saving again writes the exact same shares and
+                            files, not a new backup.
+                        </p>
+                        <button class="btn btn-primary" @onclick="RetrySaveAsync" disabled="@isGenerating">
+                            @if (isGenerating)
+                            {
+                                <span class="spinner"></span>
+                                <text>Saving…</text>
+                            }
+                            else
+                            {
+                                <text>Save again</text>
+                            }
+                        </button>
+                    </div>
+                }
+
                 <button class="btn btn-primary btn-block" @onclick="GenerateAsync"
                         disabled="@(isGenerating || HasBlockingCosignerDuplicate())">
                     @if (isGenerating)
@@ -319,6 +349,20 @@
     string? errorMessage;
     GenerationSummary? success;
 
+    // True right after a save attempt that produced no file: the dialog was
+    // cancelled or closed. Mutually exclusive with success, and the trigger for
+    // the "Save again" banner.
+    bool saveCancelled;
+
+    // The already-built bundle and the facts it was built with, kept around so a
+    // cancelled save can be retried without regenerating. Regenerating would draw
+    // a fresh random key and produce different shares, which is exactly what a
+    // mis-clicked Cancel must not cost the user. Deliberately not reset when a
+    // save attempt fails: the retry button depends on them still being here.
+    BuildOutcome? pendingOutcome;
+    string? pendingFileName;
+    bool pendingIsTestOnly;
+
     // What the result panel shows. A record rather than a formatted string, so the
     // page decides the layout and the fingerprint and filename can each sit in their
     // own monospaced row for copying and comparing.
@@ -343,6 +387,7 @@
     {
         errorMessage = null;
         success = null;
+        saveCancelled = false;
         isGenerating = true;
         try
         {
@@ -394,10 +439,53 @@
             //   slip39-wallet-backup-<label-slug>-<yyyy-MM-dd>.zip   (label present)
             //   slip39-wallet-backup-<yyyy-MM-dd>.zip                (no label)
             transcript = outcome.Transcript;
-            var fileName = BuildBundleFileName(model.Label, IsTestOnly);
-            await Downloader.DownloadAsync(fileName, outcome.Bundle, "application/zip");
+            pendingOutcome = outcome;
+            pendingFileName = BuildBundleFileName(model.Label, IsTestOnly);
+            pendingIsTestOnly = IsTestOnly;
+            await AttemptSaveAsync();
+        }
+        finally
+        {
+            isGenerating = false;
+        }
+    }
+
+    // Hands the already-built bundle to the downloader and records what happened.
+    // Called once from GenerateAsync right after a build, and again from
+    // RetrySaveAsync after a cancelled attempt, both times with the same
+    // pendingOutcome/pendingFileName, so a retry can only ever save the backup
+    // that was actually generated, never a different one.
+    async Task AttemptSaveAsync()
+    {
+        if (pendingOutcome is null || pendingFileName is null)
+            return;
+
+        var saved = await Downloader.DownloadAsync(pendingFileName, pendingOutcome.Bundle, "application/zip");
+        if (saved)
+        {
             success = new GenerationSummary(
-                IsTestOnly, outcome.MnemonicCount, outcome.Fingerprint, fileName, outcome.KeySource);
+                pendingIsTestOnly, pendingOutcome.MnemonicCount, pendingOutcome.Fingerprint,
+                pendingFileName, pendingOutcome.KeySource);
+            saveCancelled = false;
+        }
+        else
+        {
+            success = null;
+            saveCancelled = true;
+        }
+    }
+
+    // The "Save again" button. Shares isGenerating with GenerateAsync so the two
+    // cannot run at once and the button disables itself while a save is pending,
+    // including against a second, third, ... cancellation: pendingOutcome and
+    // pendingFileName are never cleared by a failed attempt, so nothing here
+    // depends on how many times the user has already said no.
+    async Task RetrySaveAsync()
+    {
+        isGenerating = true;
+        try
+        {
+            await AttemptSaveAsync();
         }
         finally
         {

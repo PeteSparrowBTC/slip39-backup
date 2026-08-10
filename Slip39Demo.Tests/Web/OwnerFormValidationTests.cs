@@ -55,16 +55,28 @@ public class OwnerFormValidationTests : TestContext
             cut.Find("#airgap-attest").Change(true);
     }
 
-    // Fake IFileDownloader that captures download attempts instead of
-    // performing browser interop. Test-only class -> mutable list is fine.
+    // Fake IFileDownloader that captures download attempts instead of performing
+    // browser/native interop. Test-only class -> mutable list is fine.
+    //
+    // Takes a script of results, one per call, so a cancelled-then-retried save
+    // can be simulated: new NoopDownloader(false, true) fails the first attempt
+    // and succeeds the second. With no script (the common case), every call
+    // succeeds. Once the script runs out, the last entry keeps repeating, so a
+    // third or later click behaves like the second rather than throwing.
     sealed class NoopDownloader : IFileDownloader
     {
         public List<(string Filename, byte[] Bytes, string Mime)> Calls { get; } = new();
 
-        public ValueTask DownloadAsync(string filename, byte[] bytes, string mimeType)
+        readonly Queue<bool> results;
+
+        public NoopDownloader(params bool[] scriptedResults) =>
+            results = new Queue<bool>(scriptedResults.Length > 0 ? scriptedResults : new[] { true });
+
+        public ValueTask<bool> DownloadAsync(string filename, byte[] bytes, string mimeType)
         {
             Calls.Add((filename, bytes, mimeType));
-            return ValueTask.CompletedTask;
+            var result = results.Count > 1 ? results.Dequeue() : results.Peek();
+            return ValueTask.FromResult(result);
         }
     }
 
@@ -350,6 +362,113 @@ public class OwnerFormValidationTests : TestContext
         cut.WaitForAssertion(() =>
         {
             downloader.Calls.Should().ContainSingle(c => c.Filename.StartsWith("INSECURE-TEST-"));
+        }, timeout: TimeSpan.FromSeconds(10));
+    }
+
+    // A native save dialog can be cancelled, unlike the browser blob download it
+    // replaced. The bug this guards against: the page used to claim "Backup
+    // created" regardless of whether anything reached disk. It must not, now that
+    // DownloadAsync can say so.
+    [Fact]
+    public void Generate_WhenSaveIsCancelled_DoesNotClaimBackupCreated()
+    {
+        var downloader = new NoopDownloader(false);
+        Services.AddSingleton<IFileDownloader>(downloader);
+
+        var cut = RenderComponent<Owner>();
+        cut.FindAll(TopLevelSeedSelector).First()
+            .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+        AttestOffline(cut);
+
+        cut.Find("button.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            downloader.Calls.Should().ContainSingle();
+            cut.Markup.Should().NotContain("Backup created.");
+            // "Wallet master fingerprint" only ever renders inside the success panel
+            // (it is not the ConnectivityBanner's own, unrelated banner-ok), so its
+            // absence is the stronger check that the whole success panel is gone,
+            // not only its headline.
+            cut.Markup.Should().NotContain("Wallet master fingerprint");
+        }, timeout: TimeSpan.FromSeconds(10));
+    }
+
+    // The other half of the same bug: a cancelled save must say so in words, not
+    // just skip the success banner, and must offer a way to save the same backup
+    // again without regenerating it.
+    [Fact]
+    public void Generate_WhenSaveIsCancelled_ShowsWarningAndSaveAgainButton()
+    {
+        var downloader = new NoopDownloader(false);
+        Services.AddSingleton<IFileDownloader>(downloader);
+
+        var cut = RenderComponent<Owner>();
+        cut.FindAll(TopLevelSeedSelector).First()
+            .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+        AttestOffline(cut);
+
+        cut.Find("button.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.Should().Contain("Nothing was saved");
+            cut.Markup.Should().Contain("backup already generated still exists");
+            cut.FindAll("button").Should().Contain(b => b.TextContent.Contains("Save again"));
+        }, timeout: TimeSpan.FromSeconds(10));
+    }
+
+    // The property that proves a mis-clicked Cancel costs nothing: retrying sends
+    // the identical bytes under the identical filename, not a freshly generated
+    // (and therefore different) backup.
+    [Fact]
+    public void SaveAgain_AfterACancelledSave_ResendsTheSameBytesAndFilename()
+    {
+        var downloader = new NoopDownloader(false, true);
+        Services.AddSingleton<IFileDownloader>(downloader);
+
+        var cut = RenderComponent<Owner>();
+        cut.FindAll(TopLevelSeedSelector).First()
+            .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+        AttestOffline(cut);
+
+        cut.Find("button.btn-primary").Click();
+        cut.WaitForAssertion(() => downloader.Calls.Should().ContainSingle(),
+            timeout: TimeSpan.FromSeconds(10));
+
+        cut.FindAll("button").First(b => b.TextContent.Contains("Save again")).Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            downloader.Calls.Should().HaveCount(2);
+            downloader.Calls[1].Filename.Should().Be(downloader.Calls[0].Filename);
+            downloader.Calls[1].Bytes.Should().Equal(downloader.Calls[0].Bytes);
+            cut.Markup.Should().Contain("Backup created.");
+        }, timeout: TimeSpan.FromSeconds(10));
+    }
+
+    // The unglamorous control case: a save that succeeds on the first try must
+    // still look exactly as it did before any of this, cancellation banner
+    // included nowhere.
+    [Fact]
+    public void Generate_WhenSaveSucceeds_ShowsBackupCreatedAndNoCancelWarning()
+    {
+        var downloader = new NoopDownloader(true);
+        Services.AddSingleton<IFileDownloader>(downloader);
+
+        var cut = RenderComponent<Owner>();
+        cut.FindAll(TopLevelSeedSelector).First()
+            .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+        AttestOffline(cut);
+
+        cut.Find("button.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.Should().Contain("Backup created.");
+            cut.Markup.Should().Contain("Wallet master fingerprint");
+            cut.Markup.Should().NotContain("Nothing was saved");
+            cut.FindAll("button").Should().NotContain(b => b.TextContent.Contains("Save again"));
         }, timeout: TimeSpan.FromSeconds(10));
     }
 }
