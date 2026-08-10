@@ -35,7 +35,7 @@ public class StylesheetContractTests
         "app", "panel", "panel-header", "panel-body", "banner", "banner-ok", "banner-warn",
         "banner-loud", "field", "field-label", "hint", "hint-loud", "input", "input-mono",
         "btn", "btn-primary", "btn-danger", "btn-sm", "btn-block", "split", "split-sticky",
-        "cols", "row-between", "mono-block", "words", "transcript", "t-command", "t-output",
+        "cols", "row-between", "mono-block", "words", "app-footer", "transcript", "t-command", "t-output",
         "t-warning", "t-note", "check", "spinner", "section-label", "subtitle", "page-head",
         "icon", "with-icon", "choice-pair",
     ];

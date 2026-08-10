@@ -1,7 +1,19 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@using Slip39Demo.Core
 
 @* One application, two pages, no sidebar. The template's nav rendered a single
    link to the page the reader was already on, and nothing referenced it. *@
 <main class="app">
     @Body
+
+    @* The version, on every page rather than one of them.
+
+       It is here because the same number is stamped into every share README and into
+       the verification record inside each backup. Somebody comparing a backup against
+       the tool that made it needs to be able to read the tool's version without opening
+       a build log, and a footer in the layout is the only place that is true on all
+       pages. AppVersion is the single source; see Directory.Build.props. *@
+    <footer class="app-footer">
+        slip39-backup v@AppVersion.Current
+    </footer>
 </main>

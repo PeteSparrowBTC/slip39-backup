@@ -1,0 +1,136 @@
+# Builds the Blazor WebAssembly app and deploys it to GitHub Pages as the online demo.
+#
+# This workflow deploys the DEMO and nothing else. It creates no GitHub Release and
+# attaches no assets. The release belongs to appimage.yml, which publishes the AppImage
+# and its checksum on a v* tag, and that AppImage is the artifact meant to touch real
+# seed phrases. Two workflows creating a release for the same tag was the previous
+# arrangement, and it meant two places could disagree about what a release contains.
+#
+# TWO TRIGGERS, FOR TWO DIFFERENT REASONS
+#
+#   push to main   keeps the demo current with the default branch.
+#
+#   push of a v*   redeploys the demo at release time, so the demo page and the AppImage
+#                  built from the same tag report the same version. Without this the demo
+#                  silently lags behind the code: it once sat 18 minutes older than the
+#                  commit that added the OpenPGP envelope, so the deployed demo produced
+#                  no payload.age.gpg while main did, and that looked like a missing
+#                  feature rather than a stale deployment.
+#
+# DELIBERATELY REMOVED, do not restore without reading this
+#
+#   - A zip of publish/wwwroot attached to the release. It shipped the app as loose files
+#     to be served over a local HTTP server, with instructions naming a start-server.sh
+#     that was never in this repository, and it told the user to point a browser at
+#     127.0.0.1:9876. The AppImage replaces that route entirely: no port is bound, no
+#     server runs, no browser is involved. Publishing both invited someone to pick the
+#     weaker one for a real backup.
+#
+#   - A 30-day debug artifact of the same wwwroot, which existed only to inspect a build
+#     and duplicated what the deployed page already shows.
+
+name: demo page
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  # Lets a maintainer redeploy the demo without pushing anything, for example after a
+  # Pages configuration change.
+  workflow_dispatch:
+
+permissions:
+  # Read-only on the repository: nothing here writes code, publishes a package, or
+  # creates a release. The release token lives in appimage.yml where it is needed.
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time. A tag push and a main push can arrive together, and the
+# later one should win rather than race the earlier one to the same environment.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      # The version the UI shows comes from MSBuild. Directory.Build.props holds the
+      # value every ordinary build uses; a tagged build overrides it from the tag, so
+      # the demo names exactly the version that was released. Empty output means "not a
+      # tag build, use the checked-in value".
+      - name: Derive the version from the tag
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            echo "Building as version ${GITHUB_REF_NAME#v} from tag ${GITHUB_REF_NAME}."
+          else
+            echo "value=" >> "$GITHUB_OUTPUT"
+            echo "Not a tag build; using the version in Directory.Build.props."
+          fi
+
+      # The suite gates the demo as well as the AppImage. The demo is marked
+      # DEMONSTRATION AND TESTING ONLY, but a broken one teaches the wrong recovery
+      # procedure to whoever reads it, and people do read it before trusting the tool.
+      - name: Test
+        run: dotnet test Slip39Demo.slnx -c Release
+
+      - name: Publish
+        run: |
+          if [ -n "${{ steps.version.outputs.value }}" ]; then
+            dotnet publish Slip39Demo.Web -c Release -o publish \
+              -p:Version=${{ steps.version.outputs.value }}
+          else
+            dotnet publish Slip39Demo.Web -c Release -o publish
+          fi
+
+      # Nothing this repository wrote may point at an outside origin: the app has to load
+      # with the network disconnected. _framework is excluded because it is the .NET
+      # WebAssembly runtime rather than our code, and it contains strings that look like
+      # URLs and are never fetched. The repository link on the landing page is allowed:
+      # it is an anchor a reader may click on another machine, not a fetch.
+      - name: Check the published app for external references
+        run: |
+          if grep -rIEn "https?://" publish/wwwroot --exclude-dir=_framework \
+               | grep -vE "127\.0\.0\.1|localhost|github\.com/PeteSparrowBTC"; then
+            echo "::error::The published app references an external origin."
+            exit 1
+          fi
+          echo "No external references."
+
+      # GitHub Pages serves this repository under /slip39-backup/, so the base href has
+      # to match or every asset resolves to the wrong path and 404s.
+      - name: Point base href at the Pages subpath
+        run: sed -i 's|<base href="/" />|<base href="/slip39-backup/" />|' publish/wwwroot/index.html
+
+      # Without this, Pages runs the output through Jekyll, which discards directories
+      # beginning with an underscore, including _framework. The app would not start.
+      - name: Add .nojekyll
+        run: touch publish/wwwroot/.nojekyll
+
+      - name: Upload the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: publish/wwwroot
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # No branch condition here on purpose. The old workflow deployed only for
+    # refs/heads/main, which is why a v* tag never refreshed the demo.
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

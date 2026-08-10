@@ -386,6 +386,17 @@ code {
 
 a { color: var(--accent); }
 
+/* The version footer, on every page through MainLayout. Quiet on purpose: it has to be
+   findable when somebody is checking a backup against the tool that wrote it, and
+   invisible the rest of the time. */
+.app-footer {
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--panel-edge);
+    color: var(--ink-dim);
+    font-size: .85rem;
+}
+
 .spinner {
     display: inline-block;
     width: .8rem;

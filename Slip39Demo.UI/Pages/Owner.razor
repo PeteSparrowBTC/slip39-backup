@@ -2,6 +2,7 @@
 @using System.Security.Cryptography
 @using System.Text
 @using CSharpFunctionalExtensions
+@using Slip39Demo.Core
 @using Slip39Demo.Core.Age
 @using Slip39Demo.Core.Bip32
 @using Slip39Demo.Core.Bundle
@@ -388,7 +389,7 @@
             var g = cfg.Groups[gi];
             for (var mi = 0; mi < g.Count; mi++)
             {
-                var readme = ReadmeTemplate.Build(g.Name, mi + 1, g.Count, $"{DateTime.UtcNow:yyyy-MM-dd}", "2.0.0", IsTestOnly);
+                var readme = ReadmeTemplate.Build(g.Name, mi + 1, g.Count, $"{DateTime.UtcNow:yyyy-MM-dd}", AppVersion.Current, IsTestOnly);
                 var folder = ShareFolder.Build(readme, mnemonics[flat]);
                 var zip = ShareZipWriter.Write(folder);
                 var fileName = cfg.Groups.Count == 1
@@ -411,7 +412,7 @@
         var fingerprint = Bip32MasterFingerprint.Compute(firstSeed, firstPp);
         var record = VerificationRecord.Build(
             createdDate: $"{DateTime.UtcNow:yyyy-MM-dd}",
-            toolVersion: "2.0.0",
+            toolVersion: AppVersion.Current,
             label: model.Label ?? "",
             mnemonicsInOrder: mnemonics,
             payloadAgeBytes: ciphertext,
