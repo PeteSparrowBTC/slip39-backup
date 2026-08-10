@@ -5,8 +5,8 @@ browser, no local server, no Tor configuration. All cryptography runs locally;
 the window is rendered by WebKitGTK, which Tails ships out of the box.
 
 The app has two pages you'll use:
-- **`/owner`** — create a backup. Outputs a single `output.zip` (share zips + `payload.age` + verification record).
-- **`/recoverer`** — recover a wallet. Drop threshold-many share zips and `payload.age` in, click Recover.
+- **`/owner`**: create a backup. Outputs a single `output.zip` (share zips, `payload.age` in three forms: binary, ASCII-armored, and OpenPGP-wrapped, plus a verification record).
+- **`/recoverer`**: recover a wallet. Drop threshold-many share zips and any one of the three `payload.age` forms in, click Recover.
 
 ## Requirements
 
@@ -49,8 +49,12 @@ The app has two pages you'll use:
    via the native save dialog; print the recovery kit via the print dialog
    (print-to-PDF works out of the box).
 
-6. **Shut down Tails.** Everything outside your explicit saves is wiped — the
-   app itself writes nothing.
+6. **Shut down Tails.** Everything outside your explicit saves is wiped on a
+   default (non-Persistent) session. The app itself never writes your seed or
+   passphrase to disk unless you save it yourself; the WebKitGTK window does
+   create its own small local-data folder, the way any browser engine does,
+   holding no wallet data, and it is wiped along with the rest unless you have
+   enabled Persistent Storage, in which case it is not.
 
 ## Troubleshooting
 

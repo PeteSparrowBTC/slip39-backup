@@ -117,10 +117,15 @@ Tested behaviour: a push targeting `main` exits 1 with instructions, a feature b
 
 ## Testing conventions
 
-- `SLIP39_AGE_DIR` points at an unpacked age release and enables the
-  native-encryptor tests. Without it they skip rather than fail, so a contributor
-  without the binaries sees a partial run instead of a red suite. CI sets it after
-  fetching the pinned version.
+- `SLIP39_AGE_DIR` points at an unpacked age release and enables
+  `the_real_age_program_produces_an_age_file` in `src-tauri/src/age.rs`, the one
+  Rust test that runs the real `age` binary end to end. Locally, without the
+  variable set, it prints a skip message and returns; Rust has no equivalent of
+  `SkippableFact`, so a plain early return would look like a pass with nothing
+  checked. To avoid that, the test also checks for a `CI` environment variable: if
+  that is set and `SLIP39_AGE_DIR` is not, it fails outright rather than passing
+  silently. CI sets `SLIP39_AGE_DIR` after fetching the pinned age release, so this
+  path is not expected to trigger there.
 - The gpg interop tests skip the same way when GnuPG is absent.
 - Third-party binaries are never committed. They are fetched, pinned by version
   AND checksum, and verified at build time.

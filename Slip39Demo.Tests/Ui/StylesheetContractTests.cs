@@ -127,6 +127,22 @@ public class StylesheetContractTests
         html.Should().NotContainEquivalentOf("bootstrap");
     }
 
+    // Neither host project has a .razor.css file anywhere in the repository, so the
+    // scoped-CSS bundle dotnet publish would name after the project (for example
+    // Slip39Demo.Tauri.styles.css) is never produced. A link to it is dead on arrival:
+    // harmless in a browser, but a start-up error in an offline app's own terminal on
+    // every run. This caught exactly that link surviving in Slip39Demo.Tauri/wwwroot/index.html.
+    [Theory]
+    [InlineData("Slip39Demo.Web")]
+    [InlineData("Slip39Demo.Tauri")]
+    public void Host_page_does_not_link_a_project_scoped_stylesheet(string project)
+    {
+        var html = File.ReadAllText(Path.Combine(RepoRootPath(), project, "wwwroot", "index.html"));
+        html.Should().NotContain(
+            $"{project}.styles.css",
+            $"{project} has no .razor.css files, so dotnet publish never produces this bundle");
+    }
+
     // The point of the exercise. An offline tool should ship what a reviewer can
     // read before putting it on a USB stick, and 400 KB of framework that nothing
     // references is not that.

@@ -15,8 +15,8 @@
 
 **For actual wallet backup, you MUST:**
 1. **Download** the latest release: [Releases](https://github.com/PeteSparrowBTC/slip39-backup/releases)
-2. **Extract** to USB drive
-3. **Run offline** on Tails Linux with the included local server (see [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md))
+2. **Copy** the AppImage (and its `.sha256`) to a USB drive
+3. **Run offline** on Tails Linux (see [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md)); it opens a native window, no server involved
 4. **No internet connection** - completely air-gapped
 
 ---
@@ -126,18 +126,18 @@ Default setup: **single group, 3-of-5**. You can change the threshold/count or a
 
 ## Features
 
-### Web Application
+### The app itself
 
 - **Two routes**: `/owner` for creating a backup, `/recoverer` for recovering one. `/` is the chooser.
-- **Single download**: Owner mode emits one `output.zip` (share zips + `payload.age` + verification record + read-me).
+- **Single download**: Owner mode emits one `output.zip` (share zips + `payload.age` in three forms + verification record + read-me).
 - **Drop-zone recovery**: Recoverer mode accepts share `.zip` files dropped directly, or pasted mnemonics one-per-line.
 - **Dark theme**: Easy on the eyes for extended use.
-- **100% client-side**: All crypto runs in browser (WebAssembly). No network calls.
+- **100% client-side**: All crypto runs in WebAssembly, in a browser tab (demo) or the AppImage's own window. No network calls.
 
 ### Security
 
-✅ **No server processing**: Everything runs in your browser (Blazor WASM)
-✅ **No data transmission**: Verifiable in browser DevTools (Network tab)
+✅ **No server processing**: The same Blazor WebAssembly runs in a browser tab for the demo, or in the AppImage's own native window with no server and no port bound
+✅ **No data transmission**: Verifiable in browser DevTools (Network tab) for the demo
 ✅ **Offline capable**: Works completely offline on Tails Linux
 ✅ **Standard primitives**: SLIP-39 for sharing, age for encryption — no custom encoding
 ✅ **Tails-optimized**: RAM-only operation, everything wiped on shutdown
@@ -151,8 +151,8 @@ Default setup: **single group, 3-of-5**. You can change the threshold/count or a
 The GitHub Pages version is for **DEMONSTRATION AND TESTING ONLY**.
 
 **For real wallet backups:**
-- Download the release zip (Option 2 below)
-- Run on Tails Linux offline with the included server
+- Download the AppImage (Option 2 below)
+- Run it offline on Tails Linux: it opens its own window, no server and no browser involved
 - Or build from source and run locally
 
 ### Option 1: Online Demo (GitHub Pages) - FOR TESTING ONLY
@@ -192,11 +192,20 @@ See [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md) for the complete guide.
 
 ### Option 3: Build from Source
 
-**Requirements:**
+**Requirements (Linux, matching CI's `ubuntu-latest`):**
 - .NET 10 SDK
+- A stable Rust toolchain (`cargo`)
 - Git
+- `libwebkit2gtk-4.1-dev libsoup-3.0-dev libssl-dev librsvg2-dev patchelf build-essential file`
+  (the exact list `.github/workflows/appimage.yml` installs before building the shell)
 
-**Build the Tails AppImage** (publish on any OS; packaging needs Linux/WSL):
+The Rust shell (`src-tauri/`) embeds Tails's own WebKitGTK at build time, so
+`cargo build` for this target has to run on Linux; it will not link on Windows or
+macOS. A Windows machine can still compile `src-tauri` for its own host triple to
+develop and run `cargo test` (see `src-tauri/icons/README.md` for why that needs
+`icon.ico`), but the AppImage itself has to be built on Linux, WSL included.
+
+**Build the Tails AppImage** (same commands `.github/workflows/appimage.yml` runs):
 ```bash
 git clone https://github.com/PeteSparrowBTC/slip39-backup.git
 cd slip39-backup
@@ -209,27 +218,30 @@ bash packaging/appimage/build-appimage.sh src-tauri/target/release/slip39-backup
 
 ### Creating a backup (Owner mode)
 
-1. Open `/` in the browser. Click **Start backup** (or go straight to `/owner`).
+1. Start on `/` (the page the app opens on, whether that is a browser tab on the
+   demo or the AppImage's own window). Click **Start backup** (or go straight to
+   `/owner`).
 2. In the Owner page:
    - Enter your BIP-39 seed words in the **Top-level seed words** field (single-sig / shared-seed case). For multisig with distinct per-cosigner seeds, leave this empty and fill the per-cosigner seed fields instead.
    - (Optional) Set a label for the wallet.
    - (Optional) Add a BIP-39 passphrase to a cosigner.
    - (Optional) Adjust derivation path, descriptor, group threshold, or group shape. Default is 3-of-5 single-group.
 3. Click **Generate**.
-4. The browser downloads a single `output.zip` containing:
-   - `shares/share-1-of-5.zip` … `share-5-of-5.zip` — distribute to your storage locations (paper / metal / trusted holders).
-   - `payload/payload.age` (binary) and `payload/payload.age.txt` (ASCII armor) — upload to your dedicated password-manager entry with Emergency Access for your executor.
-   - `verification-record.txt` — keep alongside the payload for periodic dry-run verification.
-   - `payload/IMPORTANT-READ-FIRST.txt` — owner-only note about how to use what's in the zip.
+4. Save the resulting `output.zip` (a browser download on the demo, the native save
+   dialog on the AppImage). It contains:
+   - `shares/share-1-of-5.zip` ... `share-5-of-5.zip`: distribute to your storage locations (paper, metal, or trusted holders).
+   - `payload/payload.age` (binary), `payload/payload.age.txt` (ASCII armor) and `payload/payload.age.gpg` (the same ciphertext wrapped a second time in OpenPGP): any ONE of the three recovers the wallet, so pick where each copy goes; a common choice is uploading one to a password-manager entry with Emergency Access for your executor.
+   - `payload/VERIFY-THIS-BACKUP.txt` and `payload/IMPORTANT-READ-FIRST.txt`: owner-only notes about how to use and verify what's in the zip.
+   - `verification-record.txt` and `MANUAL-RECOVERY.txt`: keep alongside the payload for periodic dry-run verification and tool-independent recovery.
 
-The `output.zip` itself is **not** something you store long-term — it's a one-shot distribution package. Split its contents to their respective homes immediately, then delete the zip.
+The `output.zip` itself is **not** something you store long-term: it's a one-shot distribution package. Split its contents to their respective homes immediately, then delete the zip.
 
 ### Recovering a wallet (Recoverer mode)
 
-1. Open `/` → click **Start recovery** (or go straight to `/recoverer`).
+1. Start on `/`, then click **Start recovery** (or go straight to `/recoverer`).
 2. In the Recoverer page:
    - Drop threshold-many share `.zip` files into the mnemonics file picker (or paste the mnemonics one per line).
-   - Drop `payload.age` (binary) or `payload.age.txt` (ASCII armor) into the ciphertext picker (or paste the armor text).
+   - Drop any one of `payload.age` (binary), `payload.age.txt` (ASCII armor) or `payload.age.gpg` into the ciphertext picker (or paste the armor text). The `.gpg` form is unwrapped in-process; nothing external is required.
 3. Click **Recover**. The recovered wallet payload appears with a reveal-on-click for the seed words.
 
 The recoverer never needs a SLIP-39 passphrase or any out-of-band secret — possession of threshold-many shares plus the `payload.age` is sufficient.
@@ -246,11 +258,20 @@ output.zip
 │   ├── …
 │   └── share-5-of-5.zip
 ├── payload/
-│   ├── payload.age              (binary age ciphertext)
-│   ├── payload.age.txt          (ASCII armor of the same)
-│   └── IMPORTANT-READ-FIRST.txt
-└── verification-record.txt
+│   ├── payload.age                   (binary age ciphertext)
+│   ├── payload.age.txt               (ASCII armor of the same)
+│   ├── payload.age.gpg               (the same ciphertext, wrapped again in OpenPGP AES-256)
+│   ├── IMPORTANT-READ-FIRST.txt
+│   └── VERIFY-THIS-BACKUP.txt
+├── verification-record.txt
+└── MANUAL-RECOVERY.txt
 ```
+
+Any one of `payload.age`, `payload.age.txt` or `payload.age.gpg` is enough to recover
+the wallet; the second and third forms are alternate encodings and an extra wrapper
+layer, not separate secrets. See
+[the design decision record](docs/decisions/2026-08-09-envelope-entropy-and-implementations.md)
+for why all three ship.
 
 Each individual `share-K-of-N.zip` contains the SLIP-39 mnemonic for that share plus a per-share README explaining what it is and how it's used.
 
@@ -312,9 +333,9 @@ This triggers:
 
 ### What This Tool Does
 
-✅ **Client-side only**: All operations in browser (WebAssembly)
-✅ **No external requests**: Zero network traffic (verify in DevTools)
-✅ **No persistence**: Doesn't save anything to disk except the `output.zip` you explicitly download
+✅ **Client-side only**: All operations run in WebAssembly, whether that is a browser tab (demo) or the AppImage's own webview
+✅ **No external requests**: Zero network traffic (verify in DevTools, or in the AppImage's build-time check that it references no external origin)
+✅ **Your wallet is never written to disk**: the unencrypted seed and passphrase touch disk only if you choose to save the `output.zip`. The webview that renders the AppImage's window does create its own small local-data folder, the way any browser engine does; that folder holds no wallet data and is wiped along with the rest of a default Tails session
 ✅ **Tails compatible**: Works on RAM-only OS with offline mode
 
 ### What You Must Do

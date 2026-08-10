@@ -2178,5 +2178,18 @@ so cannot be reviewed against what was built.
   `VersionConsistencyTests` pins `src-tauri/Cargo.toml` to `Directory.Build.props`.
 - `AgeRunDto` became a record with init-only properties, per the C# conventions in
   `CLAUDE.md`. The tests use `with` expressions.
+- The plan specifies `cargo tauri build --no-bundle` and `cargo install tauri-cli` at
+  `:1976`. `e9b651f` dropped the CLI entirely: it has no `--manifest-path` flag, and for
+  this configuration (no `beforeBuildCommand`, `bundle.active` false) it reduces to
+  `cargo build --release` anyway, so the CLI compile bought nothing and only added a
+  dependency to the supply chain of an artifact that handles real seed phrases.
+- The plan's `Cargo.toml` and `main.rs` blocks register `tauri-plugin-fs`. `346b1b1`
+  removed it: nothing in the shell calls it, so it was unused surface in an artifact that
+  handles real seed phrases.
+- The plan states at `:1166` that a missing `SLIP39_AGE_DIR` "passes; that is expected off
+  CI". `091dc6a` inverted that for CI specifically: `the_real_age_program_produces_an_age_file`
+  now fails outright when the variable is absent and `CI` is set, because Rust has no
+  `SkippableFact` and a silent pass there would mean losing the only automated run of a
+  real `age` subprocess with nothing turning red. Off CI, absence still passes as a skip.
 
 *Collaboration by Claude*
