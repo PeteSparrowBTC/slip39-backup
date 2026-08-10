@@ -36,14 +36,20 @@ public class IconTests : TestContext
     // pictographic emoji, and in UTF-16 they always appear as a surrogate pair. The
     // glyphs deliberately kept in this UI (⚠ ✓ → ←) are all in the basic plane, so
     // this catches a returning emoji without touching them.
+    //
+    // Rooted at the repository, not just Slip39Demo.UI: the justification is
+    // rendering on an offline Tails session, and Slip39Demo.Desktop is the native
+    // host for exactly that scenario, so its .razor files need the same guard.
+    // bin/obj are excluded because they hold copies of source .razor files as build
+    // output, and .superpowers is excluded because it holds this plan's own scratch
+    // files, neither of which is UI a user ever sees rendered.
     [Fact]
     public void No_razor_file_contains_an_astral_plane_character()
     {
         var offenders = Directory
-            .EnumerateFiles(
-                Path.Combine(StylesheetContractTests.RepoRootPath(), "Slip39Demo.UI"),
-                "*.razor",
-                SearchOption.AllDirectories)
+            .EnumerateFiles(StylesheetContractTests.RepoRootPath(), "*.razor", SearchOption.AllDirectories)
+            .Where(f => !f.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .Any(segment => segment is "bin" or "obj" or ".superpowers"))
             .SelectMany(f => File.ReadLines(f)
                 .Select((line, i) => (file: Path.GetFileName(f), no: i + 1, line))
                 .Where(x => x.line.Any(char.IsSurrogate))
