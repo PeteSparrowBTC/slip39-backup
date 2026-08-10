@@ -2,15 +2,14 @@
 @using Slip39Demo.Core.Bip32
 
 <div class="panel">
+    <div class="panel-header">
+        <strong>Cosigner @(Index + 1)</strong>
+        @if (Removable)
+        {
+            <button class="btn btn-sm btn-danger" @onclick="OnRemove">Remove</button>
+        }
+    </div>
     <div class="panel-body">
-        <div class="row-between">
-            <h6>Cosigner @(Index + 1)</h6>
-            @if (Removable)
-            {
-                <button class="btn btn-sm btn-danger" @onclick="OnRemove">Remove</button>
-            }
-        </div>
-
         <div class="field">
             <label class="field-label">ID</label>
             <input class="input" @bind="Vm.Id" @bind:after="NotifyChanged" placeholder="e.g. main, trezor, cosigner_a" />

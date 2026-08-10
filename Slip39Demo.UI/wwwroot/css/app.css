@@ -219,6 +219,11 @@ h1:focus-visible {
     color: var(--ink-dim);
 }
 
+/* Rest state reads as destructive without shouting: the standard border, but
+   --bad text so a Remove/× button does not look like an ordinary button until
+   the pointer happens to land on it. Hover deepens the cue by reddening the
+   border too. */
+.btn-danger { color: var(--bad); }
 .btn-danger:hover:not(:disabled) { border-color: var(--bad); color: var(--bad); }
 
 .btn-sm { padding: .3rem .7rem; font-size: .85rem; }
@@ -229,8 +234,8 @@ h1:focus-visible {
    Layout: replaces the Bootstrap grid.
 
    .split is the two-column page (form on the left, action on the right) and
-   collapses to one column below 62rem. .cols is a generic auto-fitting row for
-   the group editor.
+   collapses to one column below 62rem. .cols is the fixed four-column row for
+   the group editor (Name, Threshold, Count, remove button).
    --------------------------------------------------------------------------- */
 .split {
     display: grid;
@@ -278,9 +283,15 @@ h1:focus-visible {
     align-self: flex-start;
 }
 
+/* The share-group row: Name, Threshold, Count, and a remove button. An explicit
+   template rather than auto-fit, because auto-fit(minmax(9rem, 1fr)) cannot fit
+   all four columns at the widths this row actually has: the fourth (the button)
+   wraps onto its own full-width row, landing between two group rows and reading
+   as closer to the next group than to the one it deletes. auto is sized to the
+   button's own content instead of stretching. */
 .cols {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    grid-template-columns: 2fr 1fr 1fr auto;
     gap: .6rem;
     align-items: end;
 }
@@ -306,6 +317,11 @@ h1:focus-visible {
     margin: 0;
     white-space: pre-wrap;
     user-select: all;
+    /* Explicit, not inherited: .banner-ok and .banner-warn both set a text
+       colour on the banner, and without this a fingerprint or filename shown
+       inside one would render in that banner's colour (e.g. green inside the
+       ok banner) instead of the neutral ink every other value uses. */
+    color: var(--ink);
 }
 
 /* Numbered word grid for mnemonics. The number is part of the content rather

@@ -116,7 +116,7 @@
                    monospaced rows instead of being buried mid-paragraph. *@
                 @if (success is not null)
                 {
-                    <div class="banner banner-ok">
+                    <div class="banner @(success.TestOnly ? "banner-warn" : "banner-ok")">
                         <strong>
                             @(success.TestOnly
                                 ? "INSECURE-TEST backup. Practice only, never for real funds."
