@@ -59,10 +59,17 @@ public class TauriFileDownloaderTests
         Assert.False(saved);
     }
 
-    // A path came back, so save_file claims the bytes are on disk. This is the half
-    // of the contract the interface doc calls out explicitly: read the file to confirm
-    // rather than trusting the string. When the path really does point at a file, that
-    // check must pass and the result must be true.
+    // A path came back, so save_file has written the bytes, fsynced them and renamed the
+    // file into place: it returns a path only after all of that. So a non-null path is the
+    // confirmation, and this pins that it is reported as saved.
+    //
+    // The version of this test that stood here briefly created a real temp file and checked
+    // DownloadAsync noticed it, matching an implementation that called File.Exists on the
+    // returned path. Both were wrong, and wrong in a way only this arrangement could hide:
+    // the frontend runs as WebAssembly inside the webview, where System.IO sees a virtual
+    // filesystem, so File.Exists on a real host path is always false. The test passed here,
+    // on a normal .NET host, while the shipped build would have called every successful save
+    // a failure. Verification belongs where the file is, which is the Rust side.
     sealed class PathReturningInterop(string? path) : ITauriInterop
     {
         public ValueTask<T> InvokeAsync<T>(string command, object? args = null) =>
@@ -70,36 +77,12 @@ public class TauriFileDownloaderTests
     }
 
     [Fact]
-    public async Task Reports_saved_when_the_returned_path_is_a_real_file()
+    public async Task Reports_saved_when_a_path_comes_back()
     {
-        var file = Path.Combine(Path.GetTempPath(), $"slip39-tauri-downloader-{Guid.NewGuid()}.zip");
-        File.WriteAllBytes(file, [1, 2, 3]);
-        try
-        {
-            var saved = await new TauriFileDownloader(new PathReturningInterop(file))
-                .DownloadAsync("backup.zip", [1, 2, 3], "application/zip");
-
-            Assert.True(saved);
-        }
-        finally
-        {
-            File.Delete(file);
-        }
-    }
-
-    // The other half of "read to confirm": a non-null path is not enough on its own.
-    // If save_file's contract were ever broken and returned a path to something that
-    // was never actually written, this must still report false rather than pass an
-    // unchecked claim through to the UI.
-    [Fact]
-    public async Task Reports_not_saved_when_the_returned_path_does_not_exist()
-    {
-        var missing = Path.Combine(Path.GetTempPath(), $"slip39-does-not-exist-{Guid.NewGuid()}.zip");
-
-        var saved = await new TauriFileDownloader(new PathReturningInterop(missing))
+        var saved = await new TauriFileDownloader(new PathReturningInterop("/home/amnesia/backup.zip"))
             .DownloadAsync("backup.zip", [1, 2, 3], "application/zip");
 
-        Assert.False(saved);
+        Assert.True(saved);
     }
 
     // The real payload is a zip, whose bytes are not valid UTF-8 text. Base64 has to

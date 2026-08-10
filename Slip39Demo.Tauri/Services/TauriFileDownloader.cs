@@ -16,12 +16,19 @@ public sealed class TauriFileDownloader(ITauriInterop interop) : IFileDownloader
             bytesB64 = Convert.ToBase64String(bytes),
         });
 
-        // save_file (src-tauri/src/save.rs) returns the path only after it has
-        // written and fsynced the bytes there, and returns null when the user
-        // cancelled the dialog. Still: the path is a string that crossed an
-        // interop boundary, and the whole point of this fix is not to trust a
-        // claim of success without a check, so confirm the file is really there
-        // rather than relying on the string alone.
-        return path is not null && File.Exists(path);
+        // save_file (src-tauri/src/save.rs) returns the path only after it has written the
+        // bytes, fsynced them to the device and renamed the file into place, and returns
+        // null when the user cancelled the dialog. So a non-null path IS the confirmation,
+        // and this method's only job is to pass that distinction on.
+        //
+        // Do NOT add a File.Exists check here, however tempting "verify rather than trust"
+        // sounds. This assembly runs as WebAssembly inside the webview, where System.IO
+        // sees the runtime's virtual filesystem and not the machine's: File.Exists on a real
+        // host path like /home/amnesia/backup.zip returns false no matter what was written.
+        // A check like that passes in the test project, which runs on a normal .NET host with
+        // a real filesystem, and then reports every successful save as a failure in the only
+        // build that matters. It was written and removed before it shipped; the checking
+        // belongs on the Rust side, where the file actually is, and that is where it is.
+        return path is not null;
     }
 }
