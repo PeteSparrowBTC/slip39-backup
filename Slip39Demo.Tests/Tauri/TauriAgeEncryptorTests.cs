@@ -113,14 +113,44 @@ public class TauriAgeEncryptorTests
         Assert.Contains(TranscriptLineKind.Warning, result.Value.Transcript.Lines.Select(l => l.Kind));
     }
 
-    // The key must never appear in anything shown to the user.
+    // The key must never appear in anything shown to the user, because the transcript is
+    // exactly what somebody pastes into a bug report when a backup will not recover.
+    //
+    // Every part of the transcript, and every spelling. The version this replaces checked
+    // only Lines, and only lowercase hex, which left two ways for a leak to pass: the
+    // Summary line, and a Convert.ToHexString that was never lowercased. Both are cheap to
+    // cover and neither would have been noticed by anything else.
     [Fact]
     public async Task Transcript_never_contains_the_key()
     {
         var result = await new TauriAgeEncryptor(new StubInterop(Good(ValidAgeFile())))
             .EncryptAsync(Encoding.UTF8.GetBytes("payload"), Key);
 
-        var text = string.Join("\n", result.Value.Transcript.Lines.Select(l => l.Text));
-        Assert.DoesNotContain(Convert.ToHexString(Key).ToLowerInvariant(), text);
+        var everythingShown = string.Join(
+            "\n",
+            result.Value.Transcript.Lines.Select(l => l.Text).Append(result.Value.Transcript.Summary));
+        var hex = Convert.ToHexString(Key);
+
+        Assert.DoesNotContain(hex.ToLowerInvariant(), everythingShown);
+        Assert.DoesNotContain(hex.ToUpperInvariant(), everythingShown);
+        Assert.DoesNotContain(Convert.ToBase64String(Key), everythingShown);
+    }
+
+    // Proves the test above is looking in the right place. Without it, a change that
+    // stopped collecting the Summary, or collected the wrong field, would leave
+    // Transcript_never_contains_the_key passing for the wrong reason: it asserts an
+    // absence, and an absence is trivially true of a string nobody built.
+    [Fact]
+    public async Task The_leak_check_reads_the_whole_transcript()
+    {
+        var result = await new TauriAgeEncryptor(new StubInterop(Good(ValidAgeFile())))
+            .EncryptAsync(Encoding.UTF8.GetBytes("payload"), Key);
+
+        var everythingShown = string.Join(
+            "\n",
+            result.Value.Transcript.Lines.Select(l => l.Text).Append(result.Value.Transcript.Summary));
+
+        Assert.Contains("age-encryption.org/v1", everythingShown);
+        Assert.Contains("official age program", everythingShown);
     }
 }
