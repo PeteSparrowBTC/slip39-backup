@@ -75,3 +75,9 @@ TestResult.xml
 nunit-*.xml
 # Local publish staging for the spike/desktop AppImage builds
 pub-*/
+
+# Leftover local clone of the patched AgeSharp fork, which this repository no longer
+# uses (see Slip39Demo.Core.csproj: it consumes the released AgeSharp NuGet package).
+# Ignored because it is a nested git repository, so a `git add -A` otherwise commits it
+# as a gitlink pointing at a clone nobody else has. That happened once.
+third_party/
