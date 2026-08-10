@@ -9,6 +9,15 @@ public sealed class OwnerFormModel
     public string? TopLevelSeedWords { get; set; }
     public string? Descriptor { get; set; }
     public int GroupThreshold { get; set; } = 1;
+
+    // The optional backup key, transcribed from a tool that derived it from physical
+    // dice (see Slip39Demo.Core.Slip39.BackupKeyEntry). Both empty is the default and
+    // means Generate creates the key with RandomNumberGenerator, exactly as before.
+    // Anything typed here must survive validation or generation fails: there is
+    // deliberately no fallback from a supplied key to the generator.
+    public string? BackupKeyHex { get; set; }
+
+    public string? BackupKeyCheckCode { get; set; }
     public List<CosignerVm> Cosigners { get; set; } = [new CosignerVm { Id = "main", DerivationPath = "m/84'/0'/0'" }];
     public List<ShareGroupVm> Groups { get; set; } = [new ShareGroupVm { Name = "only", Threshold = 3, Count = 5 }];
 }

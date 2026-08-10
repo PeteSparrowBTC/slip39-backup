@@ -1,5 +1,4 @@
 @page "/owner"
-@using System.Security.Cryptography
 @using System.Text
 @using CSharpFunctionalExtensions
 @using Slip39Demo.Core
@@ -46,6 +45,79 @@
             </div>
         </div>
 
+        @* THE BACKUP KEY, k. Optional by design: empty means the generator, which is
+           what this tool has always done. The two fields exist so k can be transcribed
+           from a tool that derived it from physical dice, giving it an origin the owner
+           can account for and recompute.
+
+           The copy here is deliberately careful about what dice buy. They do NOT remove
+           the random number generator from this backup: age generates its own file key
+           with it and the payload is encrypted under that, while k only wraps it. Saying
+           otherwise would be a claim this tool cannot support, so it does not make it. *@
+        <div class="panel">
+            <div class="panel-header">Backup key (optional)</div>
+            <div class="panel-body">
+                <p class="hint">
+                    Leave both fields empty and <strong>Generate</strong> creates the 32-byte
+                    key with this machine's random number generator, exactly as before. Fill
+                    them in to use a key you derived elsewhere and can recompute, for example
+                    with <code>dice-to-seed</code> from physical dice.
+                </p>
+
+                @* Bound on change, not on each keystroke, for the same reason the cosigner
+                   fingerprint is: a re-render of this page recomputes every cosigner's
+                   PBKDF2, which is slow enough in the WASM build to be felt if it ran on
+                   all 64 characters as they were typed. The state below therefore refreshes
+                   when the field is left. *@
+                <div class="field">
+                    <label class="field-label">Key, 64 hex characters</label>
+                    <input class="input input-mono" @bind="model.BackupKeyHex"
+                           placeholder="64 hex characters; spaces and line breaks are ignored" />
+                </div>
+
+                <div class="field">
+                    <label class="field-label">Check code, 4 characters</label>
+                    <input class="input input-mono" @bind="model.BackupKeyCheckCode"
+                           placeholder="4 hex characters" />
+                    <div class="hint">
+                        The check code catches a mistyped key. It is the first four characters
+                        of the SHA-256 of the key's printed lowercase hex, so it can be
+                        reproduced from what is on the other screen with
+                        <code>printf '%s' "$K_HEX" | sha256sum | cut -c1-4</code>. Sixteen bits
+                        of typo detection, not a security control. Required whenever a key is
+                        entered.
+                    </div>
+                </div>
+
+                @* Live account of what Generate will use, so the state is never a surprise
+                   at the moment of clicking. A refusal here is the same refusal Generate
+                   would report, shown early. *@
+                @foreach (var note in BackupKeyNotes())
+                {
+                    @if (note.Severity == "bad")
+                    {
+                        <div class="banner banner-loud">@note.Message</div>
+                    }
+                    else if (note.Severity == "warn")
+                    {
+                        <p class="hint-loud">@note.Message</p>
+                    }
+                    else
+                    {
+                        <p class="hint">@note.Message</p>
+                    }
+                }
+
+                <p class="hint">
+                    Dice do not take a random number generator out of this backup. age
+                    generates its own file key with this machine's generator and encrypts the
+                    payload under that; the key above only wraps it. What dice buy is a key
+                    whose origin you can account for and recompute, which is worth having and
+                    is a different claim.
+                </p>
+            </div>
+        </div>
+
         <p class="section-label">Cosigners</p>
         @for (var i = 0; i < model.Cosigners.Count; i++)
         {
@@ -79,8 +151,13 @@
         <div class="panel">
             <div class="panel-header">Generate</div>
             <div class="panel-body">
+                @* Names the key's origin rather than always claiming a random one: the
+                   sentence has to stay true once a key can be pasted. *@
                 <p class="hint">
-                    Clicking <strong>Generate</strong> creates a random 32-byte key, SLIP-39-splits
+                    Clicking <strong>Generate</strong> takes the 32-byte key
+                    (@(BackupKeyEntry.IsSupplied(model.BackupKeyHex, model.BackupKeyCheckCode)
+                        ? "the one entered above"
+                        : "freshly generated at random")), SLIP-39-splits
                     it, encrypts the wallet payload with age, and downloads everything as one
                     dated zip (for example <code>slip39-wallet-backup-main-wallet-2026-07-19.zip</code>).
                 </p>
@@ -134,6 +211,18 @@
                             <p class="hint">
                                 Recovered by slip39-js and typage, and this build read a
                                 backup those libraries wrote.
+                            </p>
+                        </div>
+
+                        @* Which key wrapped this backup is a fact worth recording where the
+                           owner can see it, so the source is named. The key itself is never
+                           shown: it appears only in the field it was typed into. *@
+                        <div class="field">
+                            <span class="field-label">Backup key</span>
+                            <p class="hint">
+                                @(success.KeySource == BackupKeySource.Pasted
+                                    ? "Entered by you, check code verified, and checked against the seed words in this form."
+                                    : "Generated here: 32 random bytes from this machine's generator.")
                             </p>
                         </div>
 
@@ -222,7 +311,8 @@
     // page decides the layout and the fingerprint and filename can each sit in their
     // own monospaced row for copying and comparing.
     sealed record GenerationSummary(
-        bool TestOnly, int ShareCount, Bip32Fingerprint Fingerprint, string FileName);
+        bool TestOnly, int ShareCount, Bip32Fingerprint Fingerprint, string FileName,
+        BackupKeySource KeySource);
 
     // Environment gate. machineOnline: null until the first probe completes.
     // A REAL (unwatermarked) backup requires probe==offline AND the user's
@@ -294,7 +384,8 @@
             transcript = outcome.Transcript;
             var fileName = BuildBundleFileName(model.Label, IsTestOnly);
             await Downloader.DownloadAsync(fileName, outcome.Bundle, "application/zip");
-            success = new GenerationSummary(IsTestOnly, outcome.MnemonicCount, outcome.Fingerprint, fileName);
+            success = new GenerationSummary(
+                IsTestOnly, outcome.MnemonicCount, outcome.Fingerprint, fileName, outcome.KeySource);
         }
         finally
         {
@@ -311,7 +402,8 @@
         IReadOnlyList<IReadOnlyList<string>> VerifySubsets,
         byte[] PayloadAge,
         string PayloadText,
-        EncryptionTranscript Transcript);
+        EncryptionTranscript Transcript,
+        BackupKeySource KeySource);
 
     // Pure projection from the view-model to the bundle bytes. Returns a Result so
     // every legitimate failure surface (no seed, age failure, SLIP-39 failure) is
@@ -359,7 +451,17 @@
         var payloadText = PayloadEmitter.Emit(payload);
         var payloadBytes = Encoding.UTF8.GetBytes(payloadText);
 
-        var k = RandomNumberGenerator.GetBytes(32);
+        // k, the SLIP-39 master secret. Either the 32 bytes the user entered above or 32
+        // fresh random bytes, and never a silent substitution of one for the other: if a
+        // key was supplied and is unusable (wrong length, check code mismatch, or the same
+        // value as this wallet's own BIP-39 entropy), Resolve fails and generation stops
+        // with the reason named. See BackupKeyEntry for why the collision case is a refusal
+        // rather than a warning.
+        var keyChoice = BackupKeyEntry.Resolve(
+            model.BackupKeyHex, model.BackupKeyCheckCode, SeedWordsInForm());
+        if (keyChoice.IsFailure)
+            return Result.Failure<BuildOutcome>(keyChoice.Error);
+        var k = keyChoice.Value.Key;
 
         // Encryption goes through the injected encryptor, not straight to AgeSharp:
         // the Tails AppImage runs the official age binary as a separate program,
@@ -425,7 +527,62 @@
         var verifySubsets = VerificationSubsets.BuildCoveringSubsets(cfg, mnemonics);
 
         return new BuildOutcome(bundle, mnemonics.Count, fingerprint, verifySubsets, ciphertext, payloadText,
-            cipherResult.Value.Transcript);
+            cipherResult.Value.Transcript, keyChoice.Value.Source);
+    }
+
+    // Every seed the form holds: the shared top-level one and each cosigner's own words.
+    // All of them are compared against a pasted key, not just the first, because the
+    // collision is just as total when the reused roll log belongs to the third cosigner.
+    IEnumerable<string?> SeedWordsInForm() =>
+        model.Cosigners.Select(c => c.SeedWords).Prepend(model.TopLevelSeedWords);
+
+    // Severity drives presentation only: "bad" is a state that will refuse generation,
+    // "warn" is a caveat about what the check could not cover, "ok" is what will happen.
+    sealed record BackupKeyNote(string Severity, string Message);
+
+    // The live account of k's origin. Deliberately reports the same refusals Generate
+    // would, computed from the same functions, so the panel cannot drift from the decision.
+    //
+    // It never renders the key, and it never renders the correct check code: showing the
+    // code this build computed would turn the typo detector into a fill-in-the-blank
+    // prompt, and the whole value of the code is that it was transcribed from the other
+    // screen independently.
+    IReadOnlyList<BackupKeyNote> BackupKeyNotes()
+    {
+        if (!BackupKeyEntry.IsSupplied(model.BackupKeyHex, model.BackupKeyCheckCode))
+            return [new BackupKeyNote("ok",
+                "Both fields empty. Generate will create the key with this machine's random "
+                + "number generator.")];
+
+        var read = BackupKeyEntry.Read(model.BackupKeyHex, model.BackupKeyCheckCode);
+        if (read.IsFailure)
+            return [new BackupKeyNote("bad", read.Error)];
+
+        var scan = BackupKeyEntry.ScanForSeedCollision(read.Value, SeedWordsInForm());
+        if (scan.IsFailure)
+            return [new BackupKeyNote("bad", scan.Error)];
+
+        var notes = new List<BackupKeyNote>
+        {
+            new("ok",
+                "Check code matches. Generate will split this key instead of a generated one"
+                + (scan.Value.Compared == 0
+                    ? ", and no seed words in this form could be compared against it yet."
+                    : $", and it is not the BIP-39 entropy of "
+                      + (scan.Value.Compared == 1 ? "the seed" : $"any of the {scan.Value.Compared} seeds")
+                      + " in this form.")),
+        };
+
+        // Said out loud rather than left implicit: a collision check that silently covered
+        // nothing reads exactly like one that passed.
+        if (scan.Value.Unreadable > 0)
+            notes.Add(new BackupKeyNote("warn",
+                $"{scan.Value.Unreadable} of the seeds in this form could not be read as BIP-39 "
+                + "(a word not on the list, a bad checksum, or a non-standard word count), so "
+                + "this key could not be compared against them. Generation is still allowed, "
+                + "because this tool has never required the seed words to validate."));
+
+        return notes;
     }
 
     // Builds the download filename: "slip39-wallet-backup" (what it is) + an
