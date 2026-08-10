@@ -1120,7 +1120,18 @@ Plus these component-specific rules:
 - `form-text` becomes `hint`.
 - `btn btn-sm btn-outline-danger` becomes `btn btn-sm btn-danger`.
 - In `GroupConfigEditor`, `row g-2` with `col-2` / `col-3` / `col-4` becomes a single `<div class="cols">` with plain children. The auto-fit grid replaces the fixed column widths.
-- In `RecoveredPayloadView`, `row` with `col-sm-3` / `col-sm-9` label-and-value pairs becomes a `<dl>` styled by `.cols`, and `user-select-all` becomes `mono-block`, which already sets `user-select: all`.
+- In `RecoveredPayloadView`, `row` with `col-sm-3` / `col-sm-9` label-and-value pairs becomes the
+  `field` + `field-label` + `mono-block` pattern used on every other screen, and each cosigner
+  gets its own `panel` so its fingerprint, derivation path and passphrase are visually bound to
+  it. `user-select-all` becomes `mono-block`, which already sets `user-select: all`.
+
+  **Do not use `.cols` for this.** The first draft of this plan said to, and it was wrong:
+  `.cols` is `repeat(auto-fit, minmax(9rem, 1fr))`, so `dt` and `dd` become individually
+  auto-placed grid items and every unpaired header row shifts the column parity of everything
+  after it. Label and value drift apart, and the drift grows with each cosigner. This is the
+  screen where somebody matches a fingerprint to the right cosigner while recovering real
+  funds, so alignment is a correctness property, not a cosmetic one. `.cols` is for the group
+  editor's rows of same-shaped children, which is what its comment in `app.css` says.
 - In `RecoveredPayloadView`, `bg-success border-success` marks the successful verification result. Replace with `banner banner-ok`, and make sure the success text says so in words, since the global constraint forbids colour as the only encoding.
 - Where a recovered mnemonic is displayed, use the `words` list rather than a paragraph:
 

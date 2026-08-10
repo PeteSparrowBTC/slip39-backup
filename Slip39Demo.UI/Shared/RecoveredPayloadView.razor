@@ -9,75 +9,89 @@
         }
         else
         {
-            <dl class="cols">
-                <dt>Label</dt>
-                <dd>@(Payload.Label ?? "(none)")</dd>
+            <div class="field">
+                <label class="field-label">Label</label>
+                <code class="mono-block">@(Payload.Label ?? "(none)")</code>
+            </div>
 
-                <dt>Schema version</dt>
-                <dd>@Payload.SchemaVersion</dd>
+            <div class="field">
+                <label class="field-label">Schema version</label>
+                <code class="mono-block">@Payload.SchemaVersion</code>
+            </div>
 
-                @if (Payload.TopLevelSeedWords is not null)
-                {
-                    <dt>Seed words</dt>
-                    <dd>
-                        @if (revealTopSeed)
+            @if (Payload.TopLevelSeedWords is not null)
+            {
+                <div class="field">
+                    <label class="field-label">Seed words</label>
+                    @if (revealTopSeed)
+                    {
+                        <ol class="words">
+                            @foreach (var word in Payload.TopLevelSeedWords.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                            {
+                                <li>@word</li>
+                            }
+                        </ol>
+                    }
+                    else
+                    {
+                        <button id="reveal-top-seed" class="btn btn-sm" @onclick="() => revealTopSeed = true">Reveal seed words</button>
+                    }
+                </div>
+            }
+
+            @foreach (var c in Payload.Cosigners)
+            {
+                <div class="panel">
+                    <div class="panel-header">Cosigner: @c.Id (@c.WalletType)</div>
+                    <div class="panel-body">
+                        @if (c.SeedWords is not null)
                         {
-                            <ol class="words">
-                                @foreach (var word in Payload.TopLevelSeedWords.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                            <div class="field">
+                                <label class="field-label">Seed words</label>
+                                @if (revealedCosigners.Contains(c.Id))
                                 {
-                                    <li>@word</li>
+                                    <ol class="words">
+                                        @foreach (var word in c.SeedWords.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                                        {
+                                            <li>@word</li>
+                                        }
+                                    </ol>
                                 }
-                            </ol>
+                                else
+                                {
+                                    <button class="btn btn-sm" @onclick="() => Reveal(c.Id)">Reveal seed words</button>
+                                }
+                            </div>
                         }
-                        else
+                        @if (c.Passphrase is not null)
                         {
-                            <button id="reveal-top-seed" class="btn btn-sm" @onclick="() => revealTopSeed = true">Reveal seed words</button>
+                            <div class="field">
+                                <label class="field-label">Passphrase</label>
+                                <code class="mono-block">@c.Passphrase</code>
+                            </div>
                         }
-                    </dd>
-                }
+                        <div class="field">
+                            <label class="field-label">Derivation path</label>
+                            <code>@c.DerivationPath</code>
+                        </div>
+                        @if (c.XpubFingerprint is not null)
+                        {
+                            <div class="field">
+                                <label class="field-label">Xpub fingerprint</label>
+                                <code>@c.XpubFingerprint</code>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
 
-                @foreach (var c in Payload.Cosigners)
-                {
-                    <dt>Cosigner: @c.Id (@c.WalletType)</dt>
-                    @if (c.SeedWords is not null)
-                    {
-                        <dt>Seed words</dt>
-                        <dd>
-                            @if (revealedCosigners.Contains(c.Id))
-                            {
-                                <ol class="words">
-                                    @foreach (var word in c.SeedWords.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-                                    {
-                                        <li>@word</li>
-                                    }
-                                </ol>
-                            }
-                            else
-                            {
-                                <button class="btn btn-sm" @onclick="() => Reveal(c.Id)">Reveal seed words</button>
-                            }
-                        </dd>
-                    }
-                    @if (c.Passphrase is not null)
-                    {
-                        <dt>Passphrase</dt>
-                        <dd><code class="mono-block">@c.Passphrase</code></dd>
-                    }
-                    <dt>Derivation path</dt>
-                    <dd><code>@c.DerivationPath</code></dd>
-                    @if (c.XpubFingerprint is not null)
-                    {
-                        <dt>Xpub fingerprint</dt>
-                        <dd><code>@c.XpubFingerprint</code></dd>
-                    }
-                }
-
-                @if (Payload.Descriptor is not null)
-                {
-                    <dt>Descriptor</dt>
-                    <dd><code class="mono-block">@Payload.Descriptor</code></dd>
-                }
-            </dl>
+            @if (Payload.Descriptor is not null)
+            {
+                <div class="field">
+                    <label class="field-label">Descriptor</label>
+                    <code class="mono-block">@Payload.Descriptor</code>
+                </div>
+            }
         }
     </div>
 </div>
