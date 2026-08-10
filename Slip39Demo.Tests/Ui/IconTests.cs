@@ -38,7 +38,7 @@ public class IconTests : TestContext
     // this catches a returning emoji without touching them.
     //
     // Rooted at the repository, not just Slip39Demo.UI: the justification is
-    // rendering on an offline Tails session, and Slip39Demo.Desktop is the native
+    // rendering on an offline Tails session, and Slip39Demo.Tauri is the native
     // host for exactly that scenario, so its .razor files need the same guard.
     // bin/obj are excluded because they hold copies of source .razor files as build
     // output, and .superpowers is excluded because it holds this plan's own scratch

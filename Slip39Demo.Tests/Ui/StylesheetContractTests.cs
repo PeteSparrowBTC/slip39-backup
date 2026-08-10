@@ -115,12 +115,11 @@ public class StylesheetContractTests
         offenders.Should().BeEmpty("app.css must not reach the network");
     }
 
-    // All three host pages must stop linking the vendored framework. Checked here
+    // Both host pages must stop linking the vendored framework. Checked here
     // rather than left to review, because a stray link would silently restore
     // 400 KB and the old cascade.
     [Theory]
     [InlineData("Slip39Demo.Web")]
-    [InlineData("Slip39Demo.Desktop")]
     [InlineData("Slip39Demo.Tauri")]
     public void Host_page_does_not_link_bootstrap(string project)
     {

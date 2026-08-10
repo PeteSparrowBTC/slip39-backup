@@ -1,7 +1,7 @@
 <!-- Shared Razor UI for both shells: the Blazor WASM online demo (Slip39Demo.Web)
-     and the native Tails window (Slip39Demo.Desktop). Host-specific services
-     (file download, connectivity probe) stay behind the interfaces in Services/;
-     each shell registers its own implementation. -->
+     and the Tauri-embedded native Tails window (Slip39Demo.Tauri). Host-specific
+     services (file download, connectivity probe) stay behind the interfaces in
+     Services/; each shell registers its own implementation. -->
 <Project Sdk="Microsoft.NET.Sdk.Razor">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>

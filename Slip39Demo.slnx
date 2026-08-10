@@ -1,6 +1,5 @@
 <Solution>
   <Project Path="Slip39Demo.Core/Slip39Demo.Core.csproj" />
-  <Project Path="Slip39Demo.Desktop/Slip39Demo.Desktop.csproj" />
   <Project Path="Slip39Demo.Tauri/Slip39Demo.Tauri.csproj" />
   <Project Path="Slip39Demo.Tests/Slip39Demo.Tests.csproj" />
   <Project Path="Slip39Demo.UI/Slip39Demo.UI.csproj" />

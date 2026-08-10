@@ -198,8 +198,9 @@ See [TAILS_INSTRUCTIONS.md](TAILS_INSTRUCTIONS.md) for the complete guide.
 ```bash
 git clone https://github.com/PeteSparrowBTC/slip39-backup.git
 cd slip39-backup
-dotnet publish Slip39Demo.Desktop -c Release -r linux-x64 --self-contained -o pub-desktop
-bash packaging/appimage/build-appimage.sh pub-desktop slip39-backup-x86_64.AppImage
+dotnet publish Slip39Demo.Tauri -c Release -o publish-tauri
+cargo tauri build --no-bundle --manifest-path src-tauri/Cargo.toml
+bash packaging/appimage/build-appimage.sh src-tauri/target/release/slip39-backup slip39-backup-2.0.0-x86_64.AppImage
 ```
 
 ## How It Works
@@ -270,12 +271,13 @@ slip39-backup/
 │       ├── Owner.razor          # /owner — backup creation
 │       └── Recoverer.razor      # /recoverer — wallet recovery
 ├── Slip39Demo.Web/              # WASM shell — hosted online demo only
-├── Slip39Demo.Desktop/          # Photino shell — native Tails window (AppImage)
+├── Slip39Demo.Tauri/            # Blazor WASM frontend the Tauri shell embeds
+├── src-tauri/                   # Rust shell: window, save dialog, age subprocess
 ├── Slip39Demo.Tests/            # xUnit tests
 ├── packaging/appimage/          # AppRun, .desktop, build-appimage.sh
 ├── .github/workflows/
-│   ├── build-and-release.yml    # demo build/deploy pipeline
-│   └── appimage.yml             # AppImage build + smoke test + release
+│   ├── pages.yml                # deploys the online demo to GitHub Pages only
+│   └── appimage.yml             # builds the AppImage, checksums it, publishes the release
 ├── TAILS_INSTRUCTIONS.md        # Complete Tails guide
 └── README.md                    # This file
 ```
