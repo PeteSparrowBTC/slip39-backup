@@ -96,13 +96,13 @@ public class OwnerFormValidationTests : TestContext
         Services.AddSingleton<IIndependentVerifier>(verifier);
 
         var cut = RenderComponent<Owner>();
-        cut.FindAll("input.font-monospace").First()
+        cut.FindAll("input.input-mono").First()
             .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
         cut.Find("button.btn-primary").Click();
 
         cut.WaitForAssertion(() =>
         {
-            cut.FindAll(".alert-danger").Should()
+            cut.FindAll(".banner-loud").Should()
                 .Contain(el => el.TextContent.Contains("REFUSED") && el.TextContent.Contains("cross-implementation"));
         }, timeout: TimeSpan.FromSeconds(10));
 
@@ -122,13 +122,13 @@ public class OwnerFormValidationTests : TestContext
             new FakeVerifier(Result.Failure("subset 1 recovered a DIFFERENT key")));
 
         var cut = RenderComponent<Owner>();
-        cut.FindAll("input.font-monospace").First()
+        cut.FindAll("input.input-mono").First()
             .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
         cut.Find("button.btn-primary").Click();
 
         cut.WaitForAssertion(() =>
         {
-            cut.FindAll(".alert-danger").Should().Contain(el => el.TextContent.Contains("REFUSED"));
+            cut.FindAll(".banner-loud").Should().Contain(el => el.TextContent.Contains("REFUSED"));
         }, timeout: TimeSpan.FromSeconds(10));
 
         downloader.Calls.Should().BeEmpty();
@@ -145,7 +145,7 @@ public class OwnerFormValidationTests : TestContext
         Services.AddSingleton<IIndependentVerifier>(verifier);
 
         var cut = RenderComponent<Owner>();
-        cut.FindAll("input.font-monospace").First()
+        cut.FindAll("input.input-mono").First()
             .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
         cut.Find("button.btn-primary").Click();
 
@@ -176,7 +176,7 @@ public class OwnerFormValidationTests : TestContext
 
         // First monospace input is the top-level seed (cosigner seed/derivation inputs
         // come later in the DOM).
-        cut.FindAll("input.font-monospace").First()
+        cut.FindAll("input.input-mono").First()
             .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
 
         cut.WaitForAssertion(() =>
@@ -197,7 +197,7 @@ public class OwnerFormValidationTests : TestContext
         Services.AddSingleton<IFileDownloader>(downloader);
 
         var cut = RenderComponent<Owner>();
-        cut.FindAll("input.font-monospace").First()
+        cut.FindAll("input.input-mono").First()
             .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
 
         // Add a second cosigner (identical to the first: no own seed, no passphrase, same path).
@@ -205,7 +205,7 @@ public class OwnerFormValidationTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            cut.FindAll(".alert-danger").Should().Contain(el => el.TextContent.Contains("same key"));
+            cut.FindAll(".banner-loud").Should().Contain(el => el.TextContent.Contains("same key"));
             // The Generate button is disabled while a duplicate exists.
             cut.Find("button.btn-primary").HasAttribute("disabled").Should().BeTrue();
         }, timeout: TimeSpan.FromSeconds(10));
@@ -223,7 +223,7 @@ public class OwnerFormValidationTests : TestContext
         Services.AddSingleton<IFileDownloader>(downloader);
 
         var cut = RenderComponent<Owner>();
-        cut.FindAll("input.font-monospace").First()
+        cut.FindAll("input.input-mono").First()
             .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
         cut.FindAll("button").First(b => b.TextContent.Contains("Add cosigner")).Click();
 
@@ -234,7 +234,7 @@ public class OwnerFormValidationTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            cut.FindAll(".alert-danger").Should().BeEmpty();
+            cut.FindAll(".banner-loud").Should().BeEmpty();
             cut.Find("button.btn-primary").HasAttribute("disabled").Should().BeFalse();
             var fps = cut.FindAll("input[readonly]").Select(el => el.GetAttribute("value")).ToList();
             fps.Should().HaveCount(2);
@@ -270,10 +270,10 @@ public class OwnerFormValidationTests : TestContext
         var cut = RenderComponent<Owner>();
 
         // The top-level seed words input is the first input with the
-        // font-monospace class on the page (the other monospace inputs
-        // are derivation_path/seed_words inside cosigner editors, which
-        // come later in the DOM).
-        var seedInput = cut.FindAll("input.font-monospace").First();
+        // input-mono class on the page (the cosigner editors' own seed/derivation
+        // inputs still carry the old font-monospace class until they are migrated,
+        // so they do not collide with this selector).
+        var seedInput = cut.FindAll("input.input-mono").First();
         seedInput.Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
 
         AttestOffline(cut); // offline probe landed + attestation ticked → clean backup
@@ -300,7 +300,7 @@ public class OwnerFormValidationTests : TestContext
         Services.AddSingleton<IFileDownloader>(downloader);
 
         var cut = RenderComponent<Owner>();
-        cut.FindAll("input.font-monospace").First()
+        cut.FindAll("input.input-mono").First()
             .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
         AttestOffline(cut, attest: false);
 
@@ -323,7 +323,7 @@ public class OwnerFormValidationTests : TestContext
         Services.AddSingleton<IConnectivityProbe>(new FakeProbe(online: true));
 
         var cut = RenderComponent<Owner>();
-        cut.FindAll("input.font-monospace").First()
+        cut.FindAll("input.input-mono").First()
             .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("ONLINE"),

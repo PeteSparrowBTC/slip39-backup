@@ -14,167 +14,164 @@
 
 <PageTitle>Create backup — SLIP-39 + age</PageTitle>
 
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="text-white mb-0">📤 Create backup</h2>
-        <a href="/" class="btn btn-sm btn-outline-secondary">← Home</a>
-    </div>
-
-    <ConnectivityBanner OnlineChanged="v => machineOnline = v" />
-
-    <div class="row g-3">
-        <div class="col-lg-7">
-            <div class="card mb-3">
-                <div class="card-header">Wallet metadata</div>
-                <div class="card-body p-3">
-                    <div class="mb-2">
-                        <label class="form-label small">Label</label>
-                        <input class="form-control form-control-sm" @bind="model.Label" placeholder="e.g. Main wallet 2026" />
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label small">Top-level seed words (shared-seed mode — leave empty for per-cosigner seeds)</label>
-                        <input class="form-control form-control-sm font-monospace" @bind="model.TopLevelSeedWords"
-                               placeholder="abandon ability able about above absent absorb abstract absurd abuse access accident" />
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label small">Descriptor (multisig only, optional)</label>
-                        <input class="form-control form-control-sm font-monospace" @bind="model.Descriptor"
-                               placeholder="wsh(sortedmulti(2, ...))" />
-                    </div>
-                </div>
-            </div>
-
-            <h5 class="mt-4 mb-2">Cosigners</h5>
-            @for (var i = 0; i < model.Cosigners.Count; i++)
-            {
-                var idx = i;
-                // @key ties each editor to its cosigner object. Without it, Blazor
-                // matches editors by position; once the form re-renders on every edit
-                // (live fingerprints/warnings), that mis-associates state and typed
-                // passphrases/seeds fail to commit for the 2nd+ cosigner.
-                <CosignerEditor @key="model.Cosigners[idx]" Vm="model.Cosigners[idx]" Index="idx"
-                                TopLevelSeed="@model.TopLevelSeedWords"
-                                Removable="model.Cosigners.Count > 1"
-                                OnChanged="StateHasChanged"
-                                OnRemove="() => RemoveCosigner(idx)" />
-            }
-            <button class="btn btn-sm btn-outline-secondary mb-3" @onclick="AddCosigner">+ Add cosigner</button>
-
-            @* Live sanity checks on the cosigner set. Two cosigners deriving from the
-               same secret can't add multisig security — surface that before the user
-               commits a broken backup. Non-blocking: warns, does not prevent Generate. *@
-            @foreach (var w in CosignerWarnings())
-            {
-                <div class="alert @(w.Strong ? "alert-danger" : "alert-warning") small p-2 mb-2">@w.Message</div>
-            }
-
-            <GroupConfigEditor Groups="model.Groups"
-                               GroupThreshold="model.GroupThreshold"
-                               GroupThresholdChanged="v => model.GroupThreshold = v" />
-        </div>
-
-        <div class="col-lg-5">
-            <div class="card sticky-top" style="top: 20px;">
-                <div class="card-header">Generate</div>
-                <div class="card-body p-3">
-                    <p class="small text-muted">
-                        Clicking <strong>Generate</strong> creates a random 32-byte key, SLIP-39-splits
-                        it, encrypts the wallet payload with age, and downloads everything as one
-                        dated zip (e.g. <code>slip39-wallet-backup-main-wallet-2026-07-19.zip</code>).
-                    </p>
-
-                    @* Airgap attestation: the tool cannot PROVE the environment is safe
-                       (a web page cannot detect Tails), so a real backup requires the
-                       offline probe to pass AND this deliberate confirmation. Anything
-                       less is watermarked INSECURE-TEST. *@
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="airgap-attest" @bind="attested" />
-                        <label class="form-check-label small" for="airgap-attest">
-                            I confirm this machine is offline / airgapped (ideally Tails)
-                            and will stay offline until this browser session ends.
-                        </label>
-                    </div>
-
-                    @if (IsTestOnly)
-                    {
-                        <div class="alert alert-warning small p-2">
-                            ⚠ This backup will be marked <strong>INSECURE-TEST</strong>
-                            (@(machineOnline != false ? "internet reachable" : "environment not attested")) —
-                            usable for practice only, never for real funds.
-                        </div>
-                    }
-
-                    @if (errorMessage is not null)
-                    {
-                        <div class="alert alert-danger small p-2">@errorMessage</div>
-                    }
-                    @if (successMessage is not null)
-                    {
-                        <div class="alert alert-success small p-2">@successMessage</div>
-                    }
-
-                    <button class="btn btn-primary w-100" @onclick="GenerateAsync" disabled="@(isGenerating || HasBlockingCosignerDuplicate())">
-                        @if (isGenerating)
-                        {
-                            <span class="spinner-border spinner-border-sm me-2"></span>
-                            <text>Generating…</text>
-                        }
-                        else
-                        {
-                            <text>Generate</text>
-                        }
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    @if (transcript is not null)
-    {
-        <div class="row mt-3">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <span>How your payload was encrypted</span>
-                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => showTranscript = !showTranscript">
-                            @(showTranscript ? "Hide details" : "Show details")
-                        </button>
-                    </div>
-                    <div class="card-body p-3">
-                        <p class="small mb-2">@transcript.Summary</p>
-                        @if (showTranscript)
-                        {
-                            @* Rendered as a terminal-style log: the reader sees the
-                               command that ran and what it printed back, not a claim
-                               that something happened. *@
-                            <div class="bg-dark text-light p-3 rounded small font-monospace"
-                                 style="white-space: pre-wrap; word-break: break-word;">
-                                @foreach (var line in transcript.Lines)
-                                {
-                                    @switch (line.Kind)
-                                    {
-                                        case TranscriptLineKind.Command:
-                                            <div class="text-info">$ @line.Text</div>
-                                            break;
-                                        case TranscriptLineKind.Output:
-                                            <div class="text-success">@line.Text</div>
-                                            break;
-                                        case TranscriptLineKind.Warning:
-                                            <div class="text-warning">! @line.Text</div>
-                                            break;
-                                        default:
-                                            <div class="text-secondary">@line.Text</div>
-                                            break;
-                                    }
-                                }
-                            </div>
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>
-    }
+<div class="page-head">
+    <h1>📤 Create backup</h1>
+    <a href="/" class="btn btn-sm">← Home</a>
 </div>
+
+<ConnectivityBanner OnlineChanged="v => machineOnline = v" />
+
+<div class="split">
+    <div>
+        <div class="panel">
+            <div class="panel-header">Wallet metadata</div>
+            <div class="panel-body">
+                <div class="field">
+                    <label class="field-label">Label</label>
+                    <input class="input" @bind="model.Label" placeholder="e.g. Main wallet 2026" />
+                </div>
+                <div class="field">
+                    <label class="field-label">
+                        Top-level seed words (shared-seed mode; leave empty for per-cosigner seeds)
+                    </label>
+                    <input class="input input-mono" @bind="model.TopLevelSeedWords"
+                           placeholder="abandon ability able about above absent absorb abstract absurd abuse access accident" />
+                </div>
+                <div class="field">
+                    <label class="field-label">Descriptor (multisig only, optional)</label>
+                    <input class="input input-mono" @bind="model.Descriptor"
+                           placeholder="wsh(sortedmulti(2, ...))" />
+                </div>
+            </div>
+        </div>
+
+        <p class="section-label">Cosigners</p>
+        @for (var i = 0; i < model.Cosigners.Count; i++)
+        {
+            var idx = i;
+            // @key ties each editor to its cosigner object. Without it, Blazor
+            // matches editors by position; once the form re-renders on every edit
+            // (live fingerprints/warnings), that mis-associates state and typed
+            // passphrases/seeds fail to commit for the 2nd+ cosigner.
+            <CosignerEditor @key="model.Cosigners[idx]" Vm="model.Cosigners[idx]" Index="idx"
+                            TopLevelSeed="@model.TopLevelSeedWords"
+                            Removable="model.Cosigners.Count > 1"
+                            OnChanged="StateHasChanged"
+                            OnRemove="() => RemoveCosigner(idx)" />
+        }
+        <button class="btn btn-sm" @onclick="AddCosigner">+ Add cosigner</button>
+
+        @* Live sanity checks on the cosigner set. Two cosigners deriving from the
+           same secret cannot add multisig security, so surface that before the user
+           commits a broken backup. Non-blocking: warns, does not prevent Generate. *@
+        @foreach (var w in CosignerWarnings())
+        {
+            <div class="banner @(w.Strong ? "banner-loud" : "banner-warn")">@w.Message</div>
+        }
+
+        <GroupConfigEditor Groups="model.Groups"
+                           GroupThreshold="model.GroupThreshold"
+                           GroupThresholdChanged="v => model.GroupThreshold = v" />
+    </div>
+
+    <div class="split-sticky">
+        <div class="panel">
+            <div class="panel-header">Generate</div>
+            <div class="panel-body">
+                <p class="hint">
+                    Clicking <strong>Generate</strong> creates a random 32-byte key, SLIP-39-splits
+                    it, encrypts the wallet payload with age, and downloads everything as one
+                    dated zip (for example <code>slip39-wallet-backup-main-wallet-2026-07-19.zip</code>).
+                </p>
+
+                @* Airgap attestation: the tool cannot PROVE the environment is safe
+                   (a web page cannot detect Tails), so a real backup requires the
+                   offline probe to pass AND this deliberate confirmation. Anything
+                   less is watermarked INSECURE-TEST. *@
+                <label class="check">
+                    <input type="checkbox" id="airgap-attest" @bind="attested" />
+                    <span>
+                        I confirm this machine is offline / airgapped (ideally Tails)
+                        and will stay offline until this browser session ends.
+                    </span>
+                </label>
+
+                @if (IsTestOnly)
+                {
+                    <div class="banner banner-warn">
+                        ⚠ This backup will be marked <strong>INSECURE-TEST</strong>
+                        (@(machineOnline != false ? "internet reachable" : "environment not attested")).
+                        Usable for practice only, never for real funds.
+                    </div>
+                }
+
+                @if (errorMessage is not null)
+                {
+                    <div class="banner banner-loud">@errorMessage</div>
+                }
+                @if (successMessage is not null)
+                {
+                    <div class="banner banner-ok">@successMessage</div>
+                }
+
+                <button class="btn btn-primary btn-block" @onclick="GenerateAsync"
+                        disabled="@(isGenerating || HasBlockingCosignerDuplicate())">
+                    @if (isGenerating)
+                    {
+                        <span class="spinner"></span>
+                        <text>Generating…</text>
+                    }
+                    else
+                    {
+                        <text>Generate</text>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (transcript is not null)
+{
+    <div class="panel" style="margin-top:1rem">
+        <div class="panel-header">
+            <span>How your payload was encrypted</span>
+            <button class="btn btn-sm" @onclick="() => showTranscript = !showTranscript">
+                @(showTranscript ? "Hide details" : "Show details")
+            </button>
+        </div>
+        <div class="panel-body">
+            <p class="hint">@transcript.Summary</p>
+            @if (showTranscript)
+            {
+                @* A terminal-style log: the reader sees the command that ran and
+                   what it printed back, not a claim that something happened. Each
+                   kind carries a prefix as well as a colour, so the distinction
+                   survives a grayscale screenshot. *@
+                <div class="transcript">
+                    @foreach (var line in transcript.Lines)
+                    {
+                        @switch (line.Kind)
+                        {
+                            case TranscriptLineKind.Command:
+                                <div class="t-command">$ @line.Text</div>
+                                break;
+                            case TranscriptLineKind.Output:
+                                <div class="t-output">&gt; @line.Text</div>
+                                break;
+                            case TranscriptLineKind.Warning:
+                                <div class="t-warning">! @line.Text</div>
+                                break;
+                            default:
+                                <div class="t-note"># @line.Text</div>
+                                break;
+                        }
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
 
 @code {
     [Inject] IFileDownloader Downloader { get; set; } = null!;
