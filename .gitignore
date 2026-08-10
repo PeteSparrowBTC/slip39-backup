@@ -81,3 +81,6 @@ pub-*/
 # Ignored because it is a nested git repository, so a `git add -A` otherwise commits it
 # as a gitlink pointing at a clone nobody else has. That happened once.
 third_party/
+.cargoprobe/
+publish-tauri/
+src-tauri/target/

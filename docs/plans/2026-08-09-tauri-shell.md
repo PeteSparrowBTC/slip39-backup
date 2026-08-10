@@ -24,6 +24,9 @@ first**, so this diff contains no styling noise.
 - **Do not bundle WebKitGTK.** Tails ships `libwebkit2gtk-4.1`, and bundling it triples the artifact. Verified in the Tails package manifest, recorded in [PeteSparrowBTC/tails-appimage](https://github.com/PeteSparrowBTC/tails-appimage).
 - **No pre-flight check in `AppRun`.** A check that can produce a false negative is worse than no check: an `ldconfig` probe once refused to start a working application on Tails because `ldconfig` is not on a normal user's PATH.
 - **CSP must allow WebAssembly**, or the .NET runtime cannot start and the window renders empty: `script-src 'self' 'wasm-unsafe-eval'`.
+- **One version, derived once.** `Directory.Build.props` holds it, a tag overrides it, and the same value is passed to `dotnet publish -p:Version=` and used in the AppImage filename `slip39-backup-<version>-x86_64.AppImage`. `src-tauri/Cargo.toml` declares the same value and a test pins the two together.
+- **Publish the frontend before any cargo command.** `tauri_build::build()` fails when `frontendDist` does not exist, so `cargo test` and `cargo check` both need `dotnet publish Slip39Demo.Tauri -c Release -o publish-tauri` first.
+- **No claiming to have run the window.** The executing machine is Windows; its WSL has no dotnet and cannot install `libwebkit2gtk-4.1-dev` without a password. `cargo test` and `dotnet test` do run locally. Every step that opens a window is CI's or the human's, and an unchecked box with a reason is the correct outcome for those.
 - Branch: `feat/tauri-shell`, based on `origin/main` after PR A merges.
 
 ---
@@ -221,7 +224,11 @@ as WebAssembly, and nothing later in this plan will work.
 
 [package]
 name = "slip39-backup"
-version = "0.1.0"
+# Kept equal to <Version> in Directory.Build.props, which is what the UI displays and
+# what names the AppImage. VersionConsistencyTests fails if the two drift, because a
+# window reporting one version inside a file named after another is the kind of
+# discrepancy that makes somebody distrust a backup they should trust.
+version = "2.0.0"
 edition = "2021"
 rust-version = "1.77"
 description = "Offline SLIP-39 + age wallet backup, desktop shell"
@@ -237,6 +244,11 @@ tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
 base64 = "0.22"
 sha2 = "0.10"
+
+# Only for the test that pins the JSON field names the C# side reads. Not linked into
+# the shipped binary.
+[dev-dependencies]
+serde_json = "1"
 
 # Small and stripped: this is a window, not a program, and the AppImage should stay
 # reviewable in size as well as in source.
@@ -284,7 +296,6 @@ fn main() {
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "slip39-backup",
-  "version": "0.1.0",
   "identifier": "btc.petesparrow.slip39backup",
   "build": {
     "frontendDist": "../publish-tauri/wwwroot"
@@ -316,6 +327,16 @@ in Task 2 onward fails with `__TAURI__ is undefined`.
 
 `bundle.active` is false because `packaging/appimage/build-appimage.sh` assembles the
 AppDir by hand. Tauri's own bundler copies the WebKitGTK stack in and triples the size.
+
+There is deliberately no `version` key. Tauri falls back to the `version` in
+`Cargo.toml` when the config omits it, and one place to change is better than two that
+can disagree. Nothing in this application reads the value; it exists so the shell is not
+the only component without a version.
+
+**A note on ordering that will bite otherwise:** `tauri_build::build()` fails if
+`frontendDist` does not exist, so `cargo build`, `cargo test` and `cargo check` all
+require `dotnet publish Slip39Demo.Tauri -c Release -o publish-tauri` to have run first.
+That is why step 4 publishes before step 7 builds.
 
 - [ ] **Step 6: Provide an RGBA icon**
 
@@ -832,6 +853,7 @@ git commit -m "Save generated backups through a native dialog"
 - Modify: `src-tauri/src/main.rs`
 
 **Interfaces:**
+- Produces: `encrypt_with(dir: &Path, plaintext: &[u8], passphrase_hex: &str) -> Result<AgeRun, String>`, which the tests drive directly, and the `age_encrypt` command wrapping it.
 - Produces: the `age_encrypt` command, returning this exact shape, which Task 5 consumes:
 
 ```
@@ -896,6 +918,22 @@ pub fn age_dir_for(exe: &Path) -> PathBuf {
     exe.parent().unwrap_or(Path::new(".")).join(AGE_SUBDIR)
 }
 
+/// Reported when the bundle is not there. Built here rather than inline so the
+/// missing-binary shape is defined in exactly one place and a test can assert it.
+fn bundle_missing(age: &Path, plugin: &Path) -> AgeRun {
+    AgeRun {
+        exit_code: -1,
+        stdout_b64: String::new(),
+        stdout_text: String::new(),
+        stderr_text: String::new(),
+        age_path: age.display().to_string(),
+        age_sha256: String::new(),
+        plugin_path: plugin.display().to_string(),
+        age_missing: !age.exists(),
+        plugin_missing: !plugin.exists(),
+    }
+}
+
 fn run(exe: &Path, args: &[&str], dir: &Path, stdin: Option<&[u8]>, passphrase: Option<&str>)
     -> std::io::Result<(i32, Vec<u8>, String)>
 {
@@ -926,27 +964,20 @@ fn run(exe: &Path, args: &[&str], dir: &Path, stdin: Option<&[u8]>, passphrase: 
     ))
 }
 
-#[tauri::command]
-pub fn age_encrypt(plaintext_b64: String, passphrase_hex: String) -> Result<AgeRun, String> {
-    let exe = std::env::current_exe().map_err(|e| format!("cannot locate this program: {e}"))?;
-    let dir = age_dir_for(&exe);
+/// The whole of the work, with the directory passed in rather than discovered.
+///
+/// Split from the command for one reason: a test can point it at a directory it
+/// controls. The version that read `current_exe()` internally could only be tested
+/// against wherever the test harness happened to live, which made the missing-bundle
+/// test assert something that was true either way.
+pub fn encrypt_with(dir: &Path, plaintext: &[u8], passphrase_hex: &str) -> Result<AgeRun, String> {
     let age = dir.join("age");
     let plugin = dir.join("age-plugin-batchpass");
 
     // Reported rather than decided. C# owns the message a user sees, and the reason
     // there is no fallback.
     if !age.exists() || !plugin.exists() {
-        return Ok(AgeRun {
-            exit_code: -1,
-            stdout_b64: String::new(),
-            stdout_text: String::new(),
-            stderr_text: String::new(),
-            age_path: age.display().to_string(),
-            age_sha256: String::new(),
-            plugin_path: plugin.display().to_string(),
-            age_missing: !age.exists(),
-            plugin_missing: !plugin.exists(),
-        });
+        return Ok(bundle_missing(&age, &plugin));
     }
 
     // Identify the exact binary being trusted. C# used to compute this itself, and
@@ -954,22 +985,18 @@ pub fn age_encrypt(plaintext_b64: String, passphrase_hex: String) -> Result<AgeR
     let bytes = std::fs::read(&age).map_err(|e| format!("cannot read {}: {e}", age.display()))?;
     let age_sha256 = format!("{:x}", Sha256::digest(&bytes));
 
-    let (version_code, version_out, version_err) = run(&age, &["--version"], &dir, None, None)
+    let (version_code, version_out, version_err) = run(&age, &["--version"], dir, None, None)
         .map_err(|e| format!("the bundled age program would not run: {e}"))?;
     if version_code != 0 {
         return Err(format!("age --version exited with {version_code}: {version_err}"));
     }
 
-    let plaintext = STANDARD
-        .decode(plaintext_b64)
-        .map_err(|e| format!("the frontend sent something that is not base64: {e}"))?;
-
     let (code, stdout, stderr) = run(
         &age,
         &["--encrypt", "-j", "batchpass"],
-        &dir,
-        Some(&plaintext),
-        Some(&passphrase_hex),
+        dir,
+        Some(plaintext),
+        Some(passphrase_hex),
     )
     .map_err(|e| format!("age failed to run: {e}"))?;
 
@@ -988,9 +1015,27 @@ pub fn age_encrypt(plaintext_b64: String, passphrase_hex: String) -> Result<AgeR
     })
 }
 
+/// The command. Finds the bundle, decodes what the frontend sent, and delegates. No
+/// judgement here either: see the module comment.
+#[tauri::command]
+pub fn age_encrypt(plaintext_b64: String, passphrase_hex: String) -> Result<AgeRun, String> {
+    let exe = std::env::current_exe().map_err(|e| format!("cannot locate this program: {e}"))?;
+    let plaintext = STANDARD
+        .decode(plaintext_b64)
+        .map_err(|e| format!("the frontend sent something that is not base64: {e}"))?;
+    encrypt_with(&age_dir_for(&exe), &plaintext, &passphrase_hex)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn temp(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("slip39-age-{name}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
 
     #[test]
     fn age_dir_sits_beside_the_executable() {
@@ -998,12 +1043,91 @@ mod tests {
         assert_eq!(dir, PathBuf::from("/tmp/.mount_abc/usr/bin/age"));
     }
 
+    // The other half of the contract with C#. Slip39Demo.Tests/Tauri/AgeRunDtoTests.cs
+    // pins these names from the C# side; this pins them here, so a rename fails a test
+    // instead of arriving in the frontend as a default-valued report that reads like a
+    // successful run producing nothing.
+    #[test]
+    fn the_struct_serializes_to_the_names_csharp_expects() {
+        let json = serde_json::to_string(&bundle_missing(
+            Path::new("/x/age"),
+            Path::new("/x/age-plugin-batchpass"),
+        ))
+        .unwrap();
+
+        for name in [
+            "exitCode",
+            "stdoutB64",
+            "stdoutText",
+            "stderrText",
+            "agePath",
+            "ageSha256",
+            "pluginPath",
+            "ageMissing",
+            "pluginMissing",
+        ] {
+            assert!(json.contains(&format!("\"{name}\"")), "{name} missing from {json}");
+        }
+        // No snake_case leaked through, which is the shape the rename is guarding against.
+        assert!(!json.contains("age_missing"), "serde rename did not apply: {json}");
+    }
+
+    // A missing bundle is a structured answer, not an Err. C# turns it into the
+    // message about refusing to fall back, and it can only do that if it is told
+    // which of the two binaries is absent.
     #[test]
     fn a_missing_bundle_is_reported_not_thrown() {
-        // Uses the real command against a path where nothing is bundled, proving the
-        // caller gets a structured answer rather than an error string.
-        let run = age_encrypt("aGk=".into(), "00".repeat(32)).unwrap();
-        assert!(run.age_missing || !run.age_path.is_empty());
+        let run = encrypt_with(&temp("empty"), b"hi", &"00".repeat(32)).unwrap();
+
+        assert!(run.age_missing, "age_missing");
+        assert!(run.plugin_missing, "plugin_missing");
+        assert_eq!(run.exit_code, -1);
+        assert!(run.stdout_b64.is_empty());
+        assert!(run.age_path.ends_with("age"), "age_path was {}", run.age_path);
+    }
+
+    // The plugin is the half people forget, so it is reported separately. age itself
+    // is present here, and nothing is run: the bundle is incomplete, so there is
+    // nothing to decide.
+    #[test]
+    fn a_missing_plugin_is_reported_on_its_own() {
+        let dir = temp("no-plugin");
+        std::fs::write(dir.join("age"), b"not really age").unwrap();
+
+        let run = encrypt_with(&dir, b"hi", &"00".repeat(32)).unwrap();
+
+        assert!(!run.age_missing, "age was present");
+        assert!(run.plugin_missing, "plugin_missing");
+        assert!(run.age_sha256.is_empty(), "nothing was hashed or run");
+    }
+
+    // The one test that runs the real program, and the reason the plan's admission
+    // about losing subprocess coverage no longer holds. Set SLIP39_AGE_DIR to an
+    // unpacked age release to enable it; CI does, after verifying the pinned
+    // checksum. Absent, it reports why it did nothing rather than failing, so a
+    // contributor without the binaries sees a partial run instead of a red suite.
+    // This mirrors the convention CLAUDE.md documents for the C# suite.
+    #[test]
+    fn the_real_age_program_produces_an_age_file() {
+        let Ok(dir) = std::env::var("SLIP39_AGE_DIR") else {
+            eprintln!("skipped: SLIP39_AGE_DIR is not set, so no age release is available");
+            return;
+        };
+
+        let run = encrypt_with(Path::new(&dir), b"a wallet payload", &"11".repeat(32))
+            .expect("the bundled age program should have run");
+
+        assert_eq!(run.exit_code, 0, "stderr was: {}", run.stderr_text);
+        assert_eq!(run.age_sha256.len(), 64, "sha256 should be 64 hex characters");
+        assert!(
+            run.stdout_text.contains("1.3.1"),
+            "age --version said {}",
+            run.stdout_text
+        );
+
+        let ciphertext = STANDARD.decode(&run.stdout_b64).unwrap();
+        let header = String::from_utf8_lossy(&ciphertext[..21]);
+        assert_eq!(header, "age-encryption.org/v1");
     }
 }
 ```
@@ -1027,7 +1151,18 @@ In `main.rs`, add `mod age;` and extend the handler:
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-Expected: PASS, 7 tests.
+Expected: PASS, 10 tests (5 in `net`, 5 in `age`). The real-age test prints
+`skipped: SLIP39_AGE_DIR is not set` and passes; that is expected off CI.
+
+To run it for real on Linux, fetch the pinned release first and point the variable at
+the unpacked directory:
+
+```bash
+curl -fsSLO https://github.com/FiloSottile/age/releases/download/v1.3.1/age-v1.3.1-linux-amd64.tar.gz
+echo "bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377  age-v1.3.1-linux-amd64.tar.gz" | sha256sum -c
+tar -xzf age-v1.3.1-linux-amd64.tar.gz
+SLIP39_AGE_DIR="$PWD/age" cargo test --manifest-path src-tauri/Cargo.toml
+```
 
 - [ ] **Step 4: Commit**
 
@@ -1043,6 +1178,7 @@ git commit -m "Run the bundled age program from the shell, and report what it di
 **Files:**
 - Create: `Slip39Demo.Tauri/Services/TauriAgeEncryptor.cs`
 - Create: `Slip39Demo.Tests/Tauri/TauriAgeEncryptorTests.cs`
+- Create: `Slip39Demo.Tests/Tauri/AgeRunDtoTests.cs`
 - Modify: `Slip39Demo.Tauri/Program.cs`
 
 **Interfaces:**
@@ -1105,8 +1241,7 @@ public class TauriAgeEncryptorTests
     [Fact]
     public async Task Missing_binary_fails_rather_than_falling_back()
     {
-        var missing = Good([]);
-        missing.AgeMissing = true;
+        var missing = Good([]) with { AgeMissing = true };
 
         var result = await new TauriAgeEncryptor(new StubInterop(missing)).EncryptAsync([1], Key);
 
@@ -1115,12 +1250,23 @@ public class TauriAgeEncryptorTests
         Assert.Contains("refuses to fall back", result.Error);
     }
 
+    // Reported on its own, because the plugin is the half that gets forgotten and the
+    // message has to name the right file.
+    [Fact]
+    public async Task Missing_plugin_names_the_plugin()
+    {
+        var missing = Good([]) with { PluginMissing = true };
+
+        var result = await new TauriAgeEncryptor(new StubInterop(missing)).EncryptAsync([1], Key);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("age-plugin-batchpass", result.Error);
+    }
+
     [Fact]
     public async Task Nonzero_exit_fails()
     {
-        var failed = Good([]);
-        failed.ExitCode = 1;
-        failed.StderrText = "age: bad passphrase";
+        var failed = Good([]) with { ExitCode = 1, StderrText = "age: bad passphrase" };
 
         var result = await new TauriAgeEncryptor(new StubInterop(failed)).EncryptAsync([1], Key);
 
@@ -1176,9 +1322,92 @@ public class TauriAgeEncryptorTests
 }
 ```
 
+- [ ] **Step 1b: Write the test that pins the wire shape**
+
+Every test above hands the encryptor a `AgeRunDto` that a C# `new` expression built, so
+none of them would notice if the JSON the shell actually sends did not deserialize into
+it. That mismatch would appear for the first time in the artifact people run against
+real seed phrases, as a run where every field is its default: exit code 0, no output,
+nothing missing. This is the only test in the suite that looks at the wire.
+
+The literal below is what `serde` emits for `AgeRun`, and
+`src-tauri/src/age.rs`'s own `the_struct_serializes_to_the_names_csharp_expects` test
+pins the same names from the Rust side, so a rename on either side fails a test rather
+than shipping.
+
+`Slip39Demo.Tests/Tauri/AgeRunDtoTests.cs`:
+
+```csharp
+using System.Text.Json;
+using Slip39Demo.Tauri.Services;
+
+namespace Slip39Demo.Tests.Tauri;
+
+public class AgeRunDtoTests
+{
+    // Copied from what src-tauri/src/age.rs produces: AgeRun derives Serialize with
+    // serde(rename_all = "camelCase").
+    const string FromTheShell = """
+    {
+      "exitCode": 0,
+      "stdoutB64": "YWdl",
+      "stdoutText": "v1.3.1",
+      "stderrText": "",
+      "agePath": "/tmp/.mount_x/usr/bin/age/age",
+      "ageSha256": "bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377",
+      "pluginPath": "/tmp/.mount_x/usr/bin/age/age-plugin-batchpass",
+      "ageMissing": false,
+      "pluginMissing": false
+    }
+    """;
+
+    [Fact]
+    public void Deserializes_every_field_the_shell_sends()
+    {
+        var run = JsonSerializer.Deserialize<AgeRunDto>(FromTheShell)!;
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Equal("YWdl", run.StdoutB64);
+        Assert.Equal("v1.3.1", run.StdoutText);
+        Assert.Equal("", run.StderrText);
+        Assert.Equal("/tmp/.mount_x/usr/bin/age/age", run.AgePath);
+        Assert.Equal(
+            "bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377", run.AgeSha256);
+        Assert.Equal("/tmp/.mount_x/usr/bin/age/age-plugin-batchpass", run.PluginPath);
+        Assert.False(run.AgeMissing);
+        Assert.False(run.PluginMissing);
+    }
+
+    // The failure this whole file exists to catch: a name that does not match arrives as
+    // a default, and a default AgeRunDto reads as a successful run that produced
+    // nothing. Proving the defaults are what they are is what makes the test above
+    // meaningful rather than decorative.
+    [Fact]
+    public void A_name_that_does_not_match_would_read_as_a_successful_empty_run()
+    {
+        var run = JsonSerializer.Deserialize<AgeRunDto>("""{"age_missing": true}""")!;
+
+        Assert.False(run.AgeMissing);
+        Assert.Equal(0, run.ExitCode);
+        Assert.Equal("", run.StdoutB64);
+    }
+
+    [Fact]
+    public void Reports_a_missing_bundle_the_way_the_shell_spells_it()
+    {
+        var run = JsonSerializer.Deserialize<AgeRunDto>(
+            """{"exitCode": -1, "ageMissing": true, "pluginMissing": true}""")!;
+
+        Assert.True(run.AgeMissing);
+        Assert.True(run.PluginMissing);
+        Assert.Equal(-1, run.ExitCode);
+    }
+}
+```
+
 - [ ] **Step 2: Run them and watch them fail**
 
-Run: `dotnet test Slip39Demo.slnx --filter FullyQualifiedName~TauriAgeEncryptorTests`
+Run: `dotnet test Slip39Demo.slnx --filter FullyQualifiedName~Tauri`
 
 Expected: compile error, `TauriAgeEncryptor` and `AgeRunDto` do not exist.
 
@@ -1198,17 +1427,22 @@ namespace Slip39Demo.Tauri.Services;
 
 // What src-tauri/src/age.rs reports back. It is a record of what happened, not a
 // verdict on it: every judgement below is made here.
-public sealed class AgeRunDto
+//
+// A record with init-only properties rather than settable ones: nothing should be able
+// to edit a report of what already happened. The names match the camelCase that
+// AgeRun's serde(rename_all) produces, and AgeRunDtoTests pins that agreement, because
+// nothing else in the suite deserializes real shell output.
+public sealed record AgeRunDto
 {
-    [JsonPropertyName("exitCode")] public int ExitCode { get; set; }
-    [JsonPropertyName("stdoutB64")] public string StdoutB64 { get; set; } = "";
-    [JsonPropertyName("stdoutText")] public string StdoutText { get; set; } = "";
-    [JsonPropertyName("stderrText")] public string StderrText { get; set; } = "";
-    [JsonPropertyName("agePath")] public string AgePath { get; set; } = "";
-    [JsonPropertyName("ageSha256")] public string AgeSha256 { get; set; } = "";
-    [JsonPropertyName("pluginPath")] public string PluginPath { get; set; } = "";
-    [JsonPropertyName("ageMissing")] public bool AgeMissing { get; set; }
-    [JsonPropertyName("pluginMissing")] public bool PluginMissing { get; set; }
+    [JsonPropertyName("exitCode")] public int ExitCode { get; init; }
+    [JsonPropertyName("stdoutB64")] public string StdoutB64 { get; init; } = "";
+    [JsonPropertyName("stdoutText")] public string StdoutText { get; init; } = "";
+    [JsonPropertyName("stderrText")] public string StderrText { get; init; } = "";
+    [JsonPropertyName("agePath")] public string AgePath { get; init; } = "";
+    [JsonPropertyName("ageSha256")] public string AgeSha256 { get; init; } = "";
+    [JsonPropertyName("pluginPath")] public string PluginPath { get; init; } = "";
+    [JsonPropertyName("ageMissing")] public bool AgeMissing { get; init; }
+    [JsonPropertyName("pluginMissing")] public bool PluginMissing { get; init; }
 }
 
 // Encrypts the payload by running the official age binary bundled in the AppImage,
@@ -1321,9 +1555,10 @@ public sealed class TauriAgeEncryptor(ITauriInterop interop) : IPayloadEncryptor
 
 - [ ] **Step 4: Run the tests and watch them pass**
 
-Run: `dotnet test Slip39Demo.slnx --filter FullyQualifiedName~TauriAgeEncryptorTests`
+Run: `dotnet test Slip39Demo.slnx --filter FullyQualifiedName~Tauri`
 
-Expected: PASS, 7 tests.
+Expected: PASS. 8 in `TauriAgeEncryptorTests`, 3 in `AgeRunDtoTests`, plus the 3 from
+Task 2 and the 1 from Task 3.
 
 - [ ] **Step 5: Wire it and delete the placeholder**
 
@@ -1355,15 +1590,39 @@ Done only now, so every earlier task could be compared against a working referen
 
 **Files:**
 - Delete: `Slip39Demo.Desktop/**`, `Slip39Demo.Tests/Desktop/NativeAgeEncryptorTests.cs`
-- Modify: `Slip39Demo.slnx`
+- Modify: `Slip39Demo.slnx`, `README.md`
 
 - [ ] **Step 1: Check nothing else references it**
 
-Run: `grep -rn "Slip39Demo.Desktop" --include=*.cs --include=*.csproj --include=*.slnx --include=*.razor --include=*.yml --include=*.sh --include=*.md . | grep -v "^./docs/"`
+Run: `grep -rn "Slip39Demo.Desktop" --include=*.cs --include=*.csproj --include=*.slnx --include=*.razor --include=*.yml --include=*.sh --include=*.md . | grep -v "^./docs/" | grep -v "^./.superpowers/"`
 
-Expected: matches only in `Slip39Demo.slnx`, `packaging/appimage/*`, and
-`.github/workflows/appimage.yml`, all of which Tasks 7 and 8 rewrite. Anything else is
-a dependency this plan did not account for: stop and report it.
+Expected: `Slip39Demo.slnx`, `packaging/appimage/*` and `.github/workflows/appimage.yml`,
+all of which Tasks 7 and 8 rewrite, plus `README.md`, which step 1b handles. Anything
+else is a dependency this plan did not account for: stop and report it.
+
+- [ ] **Step 1b: Update the README**
+
+The plan's original sweep missed these. Two lines name the shell that is going away, and
+one names a workflow that was renamed to `pages.yml`.
+
+`README.md:201`, in the AppImage build instructions, becomes the two-step Tauri build:
+
+```bash
+dotnet publish Slip39Demo.Tauri -c Release -o publish-tauri
+cargo tauri build --no-bundle --manifest-path src-tauri/Cargo.toml
+bash packaging/appimage/build-appimage.sh src-tauri/target/release/slip39-backup slip39-backup-2.0.0-x86_64.AppImage
+```
+
+`README.md:273`, in the tree, replaces the `Slip39Demo.Desktop` line with two:
+
+```
+├── Slip39Demo.Tauri/            # Blazor WASM frontend the Tauri shell embeds
+├── src-tauri/                   # Rust shell: window, save dialog, age subprocess
+```
+
+While in that tree, `build-and-release.yml` no longer exists. It is `pages.yml`, and it
+deploys the demo only; `appimage.yml` owns the release. Fix the two lines that describe
+them.
 
 - [ ] **Step 2: Delete**
 
@@ -1393,6 +1652,57 @@ git commit -m "Delete the Photino shell, which the Tauri shell replaces"
 **Files:**
 - Modify: `packaging/appimage/build-appimage.sh`, `packaging/appimage/AppRun`
 - Modify: `packaging/appimage/slip39-backup.desktop`
+- Create: `Slip39Demo.Tests/Packaging/VersionConsistencyTests.cs`
+
+- [ ] **Step 0: Pin the two version declarations together**
+
+The AppImage filename now carries the version (a request made during execution), and the
+version the window displays comes from `Directory.Build.props`. The Rust crate declares
+its own. Nothing stops those two drifting, and the symptom would be a file named
+`slip39-backup-2.0.0-x86_64.AppImage` whose window footer reads something else.
+
+`Slip39Demo.Tests/Packaging/VersionConsistencyTests.cs`:
+
+```csharp
+using System.Text.RegularExpressions;
+using Slip39Demo.Tests.Ui;
+
+namespace Slip39Demo.Tests.Packaging;
+
+// Directory.Build.props is the single source of the version the UI shows and the
+// AppImage filename carries. src-tauri/Cargo.toml has to declare its own, so this pins
+// the two together rather than trusting whoever bumps one to remember the other.
+public class VersionConsistencyTests
+{
+    static string Read(string relative) =>
+        File.ReadAllText(Path.Combine(StylesheetContractTests.RepoRootPath(), relative));
+
+    static string Group(string text, string pattern) =>
+        Regex.Match(text, pattern) is { Success: true } m
+            ? m.Groups[1].Value
+            : throw new InvalidOperationException($"no match for {pattern}");
+
+    [Fact]
+    public void The_rust_shell_declares_the_same_version_as_the_dotnet_build()
+    {
+        var dotnet = Group(Read("Directory.Build.props"), @"<Version>([^<]+)</Version>");
+        var rust = Group(Read("src-tauri/Cargo.toml"), @"(?m)^version\s*=\s*""([^""]+)""");
+
+        Assert.Equal(dotnet, rust);
+    }
+
+    // Tauri reads the version from Cargo.toml when the config omits it. A value here
+    // would be a third declaration, and the one nothing else checks.
+    [Fact]
+    public void The_tauri_config_declares_no_version_of_its_own() =>
+        Assert.DoesNotContain("\"version\"", Read("src-tauri/tauri.conf.json"));
+}
+```
+
+Run: `dotnet test Slip39Demo.slnx --filter FullyQualifiedName~VersionConsistency`
+
+Expected: PASS, 2 tests. If the first fails, `src-tauri/Cargo.toml` says something other
+than `2.0.0`; fix Cargo.toml, not the test.
 
 - [ ] **Step 1: Rewrite AppRun**
 
@@ -1442,6 +1752,13 @@ pinned, checksum-verified and already proven on Linux.
 #   dotnet publish Slip39Demo.Tauri -c Release -o publish-tauri
 #   cargo tauri build --no-bundle --manifest-path src-tauri/Cargo.toml
 #
+# The output name carries the version, for example
+# slip39-backup-2.0.0-x86_64.AppImage. The caller supplies it rather than this script
+# deriving it, so there is one place that decides what the version is: appimage.yml
+# takes it from the tag or from Directory.Build.props and uses the same value for
+# `dotnet publish -p:Version=` and for this filename. A name and a window footer that
+# disagree would be worse than neither carrying a version at all.
+#
 # System libraries (webkit2gtk-4.1, gtk3) are NOT bundled. Tails ships them, and
 # bundling a browser engine known to be present triples the size and pins a rendering
 # stack. See PeteSparrowBTC/tails-appimage.
@@ -1483,14 +1800,19 @@ the `--appimage-extract-and-run` invocation.
 
 - [ ] **Step 4: Build it on Linux and run it**
 
-On WSL or a Linux machine:
+**This step cannot be run on the machine this plan is being executed from.** WSL here has
+cargo and WSLg but no dotnet, no pkg-config, and `sudo` needs a password, so
+`libwebkit2gtk-4.1-dev` cannot be installed. Do not claim to have run it. Leave the
+step unchecked, say so in the report, and let Task 8 prove the packaging in CI instead.
+
+Where a Linux machine is available:
 
 ```bash
 dotnet publish Slip39Demo.Tauri -c Release -o publish-tauri
 cargo tauri build --no-bundle --manifest-path src-tauri/Cargo.toml
-bash packaging/appimage/build-appimage.sh src-tauri/target/release/slip39-backup slip39-backup-x86_64.AppImage
-ls -lh slip39-backup-x86_64.AppImage
-./slip39-backup-x86_64.AppImage
+bash packaging/appimage/build-appimage.sh src-tauri/target/release/slip39-backup slip39-backup-2.0.0-x86_64.AppImage
+ls -lh slip39-backup-2.0.0-x86_64.AppImage
+./slip39-backup-2.0.0-x86_64.AppImage
 ```
 
 Expected: the window opens, the airgap banner resolves, and a practice backup
@@ -1513,8 +1835,13 @@ git commit -m "Package the Tauri binary, and check the webkit ABI Tails actually
 
 - [ ] **Step 1: Rewrite the job**
 
-Keep the trigger block, the `permissions: contents: write`, the artifact upload and the
-release step. Replace the body between checkout and packaging with:
+Keep the trigger block and `permissions: contents: write`. Change the `paths` filter:
+`Slip39Demo.Desktop/**` becomes `Slip39Demo.Tauri/**` and `src-tauri/**`. Replace the
+body between checkout and packaging with the following. The artifact upload and release
+step are rewritten in step 1b, because the filenames are no longer fixed.
+
+While rewriting, remove the em dashes from the file's existing comment block. The
+repository forbids them and this file predates that rule.
 
 ```yaml
       - name: Set up .NET 10
@@ -1522,8 +1849,33 @@ release step. Replace the body between checkout and packaging with:
         with:
           dotnet-version: "10.0.x"
 
+      # ONE place decides what version this build is, and everything downstream reads
+      # it: the frontend is published with it so the window footer shows it, and the
+      # AppImage filename carries it. Deriving it twice is how a file named 2.0.0 ends
+      # up containing a window that says something else.
+      #
+      # A tag is authoritative when there is one, because a tag is a release. Otherwise
+      # Directory.Build.props, which is what an ordinary build of the source reports.
+      - name: Decide the version
+        id: version
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            echo "Building as $VERSION from tag ${GITHUB_REF_NAME}."
+          else
+            VERSION="$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)"
+            echo "Not a tag build; using $VERSION from Directory.Build.props."
+          fi
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "appimage=slip39-backup-${VERSION}-x86_64.AppImage" >> "$GITHUB_OUTPUT"
+
       # The suite gates the artifact, before anything is packaged. This AppImage is
       # what people run against real seed phrases on an airgapped machine.
+      #
+      # VersionConsistencyTests runs here, and it is the check that src-tauri/Cargo.toml
+      # agrees with Directory.Build.props. On a tag build the version above can differ
+      # from both, which is intended: the tag is the release.
       - name: Test (gates the released artifact)
         run: dotnet test Slip39Demo.slnx -c Release --verbosity normal
 
@@ -1532,31 +1884,82 @@ release step. Replace the body between checkout and packaging with:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev libsoup-3.0-dev libssl-dev librsvg2-dev \
-            patchelf build-essential file xvfb
+            patchelf build-essential file xvfb xdotool
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
-      # The shell has tests of its own: carrier parsing and the path the age binaries
-      # are resolved from. Both are things a C# test can no longer reach.
-      - name: Test the shell
-        run: cargo test --manifest-path src-tauri/Cargo.toml
-
-      - name: Publish the frontend
-        run: dotnet publish Slip39Demo.Tauri -c Release -o publish-tauri
-
-      # Nothing this repository wrote may point at an outside origin: the app must load
-      # with the network disconnected. _framework is excluded because it is the .NET
-      # WebAssembly runtime rather than our code, and it contains strings that look
-      # like URLs and are never fetched.
-      - name: Check the published app for external references
+      # Fetch the same age release the AppImage bundles, pinned by version AND
+      # checksum, and point SLIP39_AGE_DIR at it. That variable is what turns on the
+      # one Rust test that runs the real age program end to end.
+      #
+      # Without this step that test skips, and the encrypt path would have no automated
+      # coverage of an actual subprocess anywhere in the repository: the C# side now
+      # talks to a stub, because the subprocess moved to Rust. The pinned values are
+      # duplicated from packaging/appimage/build-appimage.sh deliberately; if they ever
+      # disagree, this step fails on the checksum rather than testing a different
+      # binary from the one that ships.
+      - name: Fetch the pinned age release for the shell tests
         run: |
-          if grep -rIEn "https?://" publish-tauri/wwwroot --exclude-dir=_framework \
-               | grep -vE "127\.0\.0\.1|localhost|github\.com/PeteSparrowBTC"; then
-            echo "::error::The published app references an external origin."
+          set -euo pipefail
+          curl -fsSLO https://github.com/FiloSottile/age/releases/download/v1.3.1/age-v1.3.1-linux-amd64.tar.gz
+          echo "bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377  age-v1.3.1-linux-amd64.tar.gz" | sha256sum -c -
+          tar -xzf age-v1.3.1-linux-amd64.tar.gz
+          echo "SLIP39_AGE_DIR=$PWD/age" >> "$GITHUB_ENV"
+
+      # The frontend must be published before any cargo command: tauri_build::build()
+      # fails when frontendDist does not exist.
+      - name: Publish the frontend
+        run: dotnet publish Slip39Demo.Tauri -c Release -o publish-tauri -p:Version=${{ steps.version.outputs.value }}
+
+      # The shell's own tests: carrier parsing, the path the age binaries resolve from,
+      # the JSON field names C# reads, and one real run of the real age program. All
+      # things a C# test can no longer reach.
+      - name: Test the shell
+        run: cargo test --manifest-path src-tauri/Cargo.toml -- --nocapture
+
+      # Nothing this repository wrote may point at an outside origin, because the app
+      # has to load with the network disconnected.
+      #
+      # Matching is per URL, not per line, and that distinction is load-bearing: the
+      # line-filtering version of this check passed a deliberately planted
+      # https://example.net/probe because it shared a line with an allowed URL, and
+      # dropping the line hid it. Fixed in pages.yml at e90faa0; the same shape is used
+      # here so the two cannot diverge.
+      #
+      # Unlike the demo, this build has no connectivity.js probe endpoints to allow:
+      # the airgap check is the is_online command in Rust, reading /sys/class/net. If
+      # this allowlist ever needs a probe URL added, something has gone wrong.
+      - name: Check the published app depends on no external origin
+        run: |
+          set -euo pipefail
+
+          # Loopback: the app's own instructions mention serving it locally.
+          ALLOWED='^https?://(127\.0\.0\.1|localhost)(:[0-9]+)?(/|$)'
+          # The repository link on the landing page: an anchor to click on another machine.
+          ALLOWED="$ALLOWED"'|^https://github\.com/PeteSparrowBTC(/|$)'
+          # XML namespace identifiers, which are names rather than addresses to fetch.
+          ALLOWED="$ALLOWED"'|^https?://(www\.)?w3\.org/(2000/svg|1999/xhtml|1999/xlink)'
+
+          urls=$(grep -rIhoE "https?://[^\"'\''[:space:])>]+" publish-tauri/wwwroot \
+                   --exclude-dir=_framework \
+                   --exclude=independent-verify.min.js \
+                 | sed 's/[.,;]*$//' | sort -u || true)
+
+          offenders=$(printf '%s\n' "$urls" | grep -vE "$ALLOWED" | grep -v '^$' || true)
+
+          if [ -n "$offenders" ]; then
+            echo "Not on the allowlist:"
+            printf '%s\n' "$offenders" | while read -r url; do
+              echo "  $url"
+              grep -rIn --fixed-strings "$url" publish-tauri/wwwroot \
+                --exclude-dir=_framework --exclude=independent-verify.min.js \
+                | sed 's/^/      /' || true
+            done
+            echo "::error::The published app references an external origin that is not on the allowlist. If it is deliberate, add it to this step and say why it is safe."
             exit 1
           fi
-          echo "No external references."
+          echo "No external dependency."
 
       - name: Install the Tauri CLI
         run: cargo install tauri-cli --version "^2.0" --locked
@@ -1567,31 +1970,110 @@ release step. Replace the body between checkout and packaging with:
         run: cargo tauri build --no-bundle --manifest-path src-tauri/Cargo.toml
 
       - name: Build the AppImage
-        run: bash packaging/appimage/build-appimage.sh src-tauri/target/release/slip39-backup slip39-backup-x86_64.AppImage
+        run: bash packaging/appimage/build-appimage.sh src-tauri/target/release/slip39-backup "${{ steps.version.outputs.appimage }}"
+```
+
+- [ ] **Step 1b: Rewrite the artifact and release steps for the versioned name**
+
+The filename is no longer a constant, so nothing may hardcode it. Note that the
+`sha256sum` line is run in the same directory as the file, so what is recorded in the
+`.sha256` is a bare filename and `sha256sum -c` works wherever the pair is copied to.
+
+```yaml
+      - name: Checksum
+        run: sha256sum "${{ steps.version.outputs.appimage }}" | tee "${{ steps.version.outputs.appimage }}.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: slip39-backup-${{ steps.version.outputs.value }}-AppImage
+          path: |
+            ${{ steps.version.outputs.appimage }}
+            ${{ steps.version.outputs.appimage }}.sha256
+
+      # On a version tag, publish the AppImage and its checksum to a GitHub Release so
+      # users have a stable, downloadable, checksum-verified artifact.
+      - name: Publish to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.version.outputs.appimage }}
+            ${{ steps.version.outputs.appimage }}.sha256
+          fail_on_unmatched_files: true
+          body: |
+            Offline SLIP-39 + age wallet-backup tool: a single native-window AppImage
+            for Tails 7+. No browser, no server, no port bound, no Tor interaction.
+
+            **Verify before use:**
+            ```
+            sha256sum -c ${{ steps.version.outputs.appimage }}.sha256
+            chmod +x ${{ steps.version.outputs.appimage }}
+            ./${{ steps.version.outputs.appimage }}
+            ```
+            Run it on an airgapped machine (Tails 7+) to produce real backups; the tool
+            watermarks anything generated while online as INSECURE-TEST.
 ```
 
 - [ ] **Step 2: Keep the smoke test honest**
 
 The old smoke test used `SLIP39_SMOKE=1`, a hook in `DesktopRoot.razor` that exited 0
-once Blazor had rendered. That component is deleted. Replace the step with one that
-proves the AppImage starts and its window survives a few seconds under xvfb:
+once Blazor had rendered. That component is deleted.
+
+The naive replacement is `xvfb-run ... & sleep 12; kill -0 $!`, and it is worth saying
+why that is not good enough: `$!` there is xvfb-run's pid, not the application's, so the
+check passes while proving only that a wrapper script is alive. Start Xvfb explicitly so
+the application's own pid is known, and then look for the window it should have created.
 
 ```yaml
+      # Proves three things: the AppImage mounts and executes, GTK and WebKitGTK
+      # initialise against the Tails library set, and a window with the expected title
+      # exists. That last part is what a bare "process is alive" check misses: a Tauri
+      # binary that cannot find a webview stays running with no window at all.
+      #
+      # WHAT THIS DOES NOT PROVE: that Blazor started inside the webview. The old
+      # SLIP39_SMOKE hook did prove that, and nothing here replaces it, so this is a
+      # genuine reduction. A CSP that blocked wasm-unsafe-eval would pass this step and
+      # produce an empty window. Task 8 step 5, the manual Tails run, is the check for
+      # that, and it is therefore not optional. A WebDriver check against the running
+      # window is the proper fix and is not in scope here.
       - name: Smoke test the AppImage under xvfb
         run: |
-          chmod +x slip39-backup-x86_64.AppImage
-          xvfb-run -a timeout 20 ./slip39-backup-x86_64.AppImage --appimage-extract-and-run &
-          PID=$!
-          sleep 12
-          kill -0 $PID || { echo "::error::the AppImage exited before 12 seconds"; exit 1; }
-          kill $PID || true
-          echo "The window stayed up."
-```
+          set -euo pipefail
+          chmod +x "${{ steps.version.outputs.appimage }}"
 
-This is weaker than the old check, which proved the UI had rendered. Say so in the
-step's comment rather than letting it read as equivalent. A stronger replacement, a
-WebDriver check against the running window, is worth doing later and is not in scope
-here.
+          Xvfb :99 -screen 0 1280x1024x24 >/dev/null 2>&1 &
+          XVFB_PID=$!
+          export DISPLAY=:99
+          sleep 2
+
+          ./"${{ steps.version.outputs.appimage }}" --appimage-extract-and-run &
+          APP_PID=$!
+
+          FOUND=""
+          for _ in $(seq 1 30); do
+            if xdotool search --name "Seed Phrase Storage" >/dev/null 2>&1; then
+              FOUND=yes
+              break
+            fi
+            kill -0 "$APP_PID" 2>/dev/null || break
+            sleep 1
+          done
+
+          if ! kill -0 "$APP_PID" 2>/dev/null; then
+            echo "::error::the AppImage exited on its own before a window appeared"
+            kill "$XVFB_PID" 2>/dev/null || true
+            exit 1
+          fi
+          if [ -z "$FOUND" ]; then
+            echo "::error::no window titled 'Seed Phrase Storage' appeared within 30 seconds"
+            kill "$APP_PID" "$XVFB_PID" 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "A window appeared and the process was still running: $(xdotool search --name 'Seed Phrase Storage' getwindowname %@ | head -1)"
+          kill "$APP_PID" "$XVFB_PID" 2>/dev/null || true
+```
 
 - [ ] **Step 3: Push the branch and let CI run it**
 
@@ -1616,10 +2098,10 @@ complete until a run has gone green, and quote its output in the pull request.
 Download the artifact from the run, then on Tails, offline:
 
 ```bash
-sha256sum -c slip39-backup-x86_64.AppImage.sha256
-cp slip39-backup-x86_64.AppImage ~/ && cd ~
-chmod +x slip39-backup-x86_64.AppImage
-./slip39-backup-x86_64.AppImage
+sha256sum -c slip39-backup-2.0.0-x86_64.AppImage.sha256
+cp slip39-backup-2.0.0-x86_64.AppImage ~/ && cd ~
+chmod +x slip39-backup-2.0.0-x86_64.AppImage
+./slip39-backup-2.0.0-x86_64.AppImage
 ```
 
 Copy off the stick first: a stick may be mounted `noexec` and the executable bit does
@@ -1656,12 +2138,34 @@ Checked against the spec:
 Two things this plan admits rather than hides:
 
 1. **The smoke test gets weaker.** `SLIP39_SMOKE=1` proved Blazor had rendered inside
-   the webview. Its replacement proves only that the process stays up. Task 8 step 2
-   says so in the workflow comment instead of letting the step read as equivalent.
-2. **Two `SkippableFact` tests lose their real subprocess.** They ran a downloaded age
-   release through `NativeAgeEncryptor` when `SLIP39_AGE_DIR` was set. The subprocess
-   is now in Rust, so `cargo test` and the manual Tails verification in Task 8 step 5
-   cover it instead. That is a real reduction in automated coverage of the encrypt
-   path, and Task 8 step 5 is therefore not optional.
+   the webview. Its replacement proves that the AppImage executes, that WebKitGTK
+   initialises, and that a window with the expected title appears, which is more than
+   "the process stays up" but still not proof that the .NET runtime started. A CSP
+   mistake would pass it. Task 8 step 2 says so in the workflow comment instead of
+   letting the step read as equivalent, and Task 8 step 5 is the check that closes it.
+2. **Two `SkippableFact` tests lose their real subprocess, and it is recovered in
+   Rust.** They ran a downloaded age release through `NativeAgeEncryptor` when
+   `SLIP39_AGE_DIR` was set. The subprocess moved to Rust, so
+   `the_real_age_program_produces_an_age_file` takes over, gated on the same variable
+   and set by CI from the same pinned release the AppImage bundles. Automated coverage
+   of a real `age` run therefore survives the move rather than being deferred to the
+   manual step.
+
+## Amendments made during execution, 2026-08-10
+
+Recorded here rather than silently folded in, because a plan that changes without saying
+so cannot be reviewed against what was built.
+
+- Five defects found in the pre-flight scan and fixed before dispatch: a Task 4 test
+  that asserted nothing, a Task 8 external-reference check in the exact broken form
+  `pages.yml` had already been fixed out of, no coverage of the real `AgeRunDto` wire
+  shape, the lost subprocess coverage above, and a `README.md` reference to the Photino
+  shell that Task 6's sweep did not list. Details in the ledger at
+  `.superpowers/sdd/2026-08-09-tauri-shell/progress.md`.
+- The AppImage filename now carries the version, at the user's request. Tasks 7 and 8
+  derive it once and use it for both `-p:Version=` and the filename, and
+  `VersionConsistencyTests` pins `src-tauri/Cargo.toml` to `Directory.Build.props`.
+- `AgeRunDto` became a record with init-only properties, per the C# conventions in
+  `CLAUDE.md`. The tests use `with` expressions.
 
 *Collaboration by Claude*
