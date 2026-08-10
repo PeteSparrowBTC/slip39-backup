@@ -24,6 +24,9 @@
     <!-- NativeAgeEncryptor lives in the desktop host; its subprocess plumbing is
          the part most worth testing and cannot be reached from UI alone. -->
     <ProjectReference Include="..\Slip39Demo.Desktop\Slip39Demo.Desktop.csproj" />
+    <!-- ITauriInterop and the services built on it live in the Tauri frontend project;
+         referenced here so TauriConnectivityProbeTests can see them. -->
+    <ProjectReference Include="..\Slip39Demo.Tauri\Slip39Demo.Tauri.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- C2SP/CCTV age wire-format vectors, read at runtime by
