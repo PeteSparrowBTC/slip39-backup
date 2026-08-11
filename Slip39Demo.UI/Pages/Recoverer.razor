@@ -90,24 +90,39 @@
             var cipher = ResolveCiphertext();
             if (cipher.IsFailure) { errorMessage = cipher.Error; return; }
 
-            // The file handed to us may be payload.age.gpg: the same age file with
-            // a second lock around it. Take that off first, in-process, so
-            // recovery never depends on GnuPG being installed and driveable on
-            // whatever machine the heir happens to have. Detected by content
-            // rather than by file name, because the file may have been renamed,
-            // re-downloaded from a password manager, or arrive with no extension.
-            var unwrapped = LooksLikeOpenPgp(cipher.Value)
+            // Four shapes can arrive: an age file or an OpenPGP envelope, each either
+            // binary or ASCII armored. Classified in Core by content rather than by
+            // file name, because the file may have been renamed, downloaded from a
+            // password manager as "attachment.dat", or pasted through a note.
+            //
+            // The armored OpenPGP case is the one this page used to get wrong. It
+            // checked only the high bit, which catches binary OpenPGP and misses
+            // armor, since armor is ASCII. Armor is precisely what a password-manager
+            // note holds, so the most likely payload an heir pastes was the one that
+            // went to the wrong decryptor and came back reported as corrupt.
+            var shape = CiphertextShapeDetector.Detect(cipher.Value);
+
+            var unwrapped = shape.IsOpenPgp()
+                // Both OpenPGP forms go here: PgpEnvelope strips armor itself.
                 ? PgpEnvelope.Decrypt(cipher.Value, keyResult.Value)
                 : Result.Success(cipher.Value);
             if (unwrapped.IsFailure)
             {
                 errorMessage =
-                    "This looks like a payload.age.gpg (an age file with a second lock around it), "
-                    + $"but that lock would not open with these shares: {unwrapped.Error}";
+                    "This is an OpenPGP-wrapped payload (payload.age.gpg, an age file with a "
+                    + $"second lock around it), but that lock would not open with these shares: {unwrapped.Error}";
                 return;
             }
 
-            var plain = AgePassphrase.Decrypt(unwrapped.Value, keyResult.Value);
+            // An age-armored payload still needs dearmoring, and it may have been
+            // sitting inside the OpenPGP envelope just removed, so this is decided
+            // from the unwrapped bytes rather than from the outer shape.
+            var ageBytes = CiphertextShapeDetector.Detect(unwrapped.Value).IsAgeArmor()
+                ? AgeArmor.Decode(Encoding.UTF8.GetString(unwrapped.Value))
+                : Result.Success(unwrapped.Value);
+            if (ageBytes.IsFailure) { errorMessage = ageBytes.Error; return; }
+
+            var plain = AgePassphrase.Decrypt(ageBytes.Value, keyResult.Value);
             if (plain.IsFailure) { errorMessage = plain.Error; return; }
 
             var parsed = PayloadParser.Parse(Encoding.UTF8.GetString(plain.Value));
@@ -121,19 +136,18 @@
         }
     }
 
-    // An OpenPGP file begins with a packet tag byte, which always has the high
-    // bit set. An age file begins with "age-encryption.org/v1" and its armor with
-    // "-----BEGIN", both plain ASCII with the high bit clear, so one byte
-    // separates the two cleanly with no guessing from file extensions.
-    static bool LooksLikeOpenPgp(byte[] data) =>
-        data.Length > 0 && (data[0] & 0x80) != 0;
-
+    // Returns the payload as bytes, WITHOUT interpreting it. Decoding used to happen
+    // here, via AgeArmor.Decode on anything pasted, which rejected OpenPGP armor
+    // outright: the pasted form of the file this tool now ships could not be
+    // recovered at all. Classification belongs to CiphertextShapeDetector, so this
+    // only decides where the bytes came from.
     Result<byte[]> ResolveCiphertext()
     {
         if (binaryFromUpload is not null && binaryFromUpload.Length > 0)
             return binaryFromUpload;
         if (!string.IsNullOrWhiteSpace(armorText))
-            return AgeArmor.Decode(armorText);
-        return Result.Failure<byte[]>("Provide either the binary payload.age or its ASCII-armored text.");
+            return Encoding.UTF8.GetBytes(armorText);
+        return Result.Failure<byte[]>(
+            "Provide the encrypted payload: the file itself, or its ASCII-armored text pasted in.");
     }
 }

@@ -98,7 +98,17 @@ public static class PgpEnvelope
     public static Result<byte[]> Decrypt(byte[] pgpFile, byte[] key32) =>
         ValidateKey(key32).Bind(_ => Try(() =>
         {
-            var factory = new PgpObjectFactory(pgpFile);
+            // GetDecoderStream strips ASCII armor when it is present and passes binary
+            // straight through, so both forms of the same envelope arrive here and
+            // neither the caller nor Recoverer has to decide which it holds.
+            //
+            // This matters for a pasted payload: a password-manager note holds the
+            // armored form, and an heir copying it out has no way to produce binary.
+            // Before this, armored input reached PgpObjectFactory as base64 text and
+            // failed with a message about finding no OpenPGP data, which reads like a
+            // corrupted backup rather than an unsupported input shape.
+            using var input = PgpUtilities.GetDecoderStream(new MemoryStream(pgpFile));
+            var factory = new PgpObjectFactory(input);
             var first = factory.NextPgpObject();
 
             // gpg may emit a marker packet before the encrypted list; skip until
