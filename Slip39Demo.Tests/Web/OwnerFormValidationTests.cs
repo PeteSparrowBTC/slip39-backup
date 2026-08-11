@@ -37,6 +37,9 @@ public class OwnerFormValidationTests : TestContext
         // depend on an age binary being present. The subprocess path has its own
         // tests against a real downloaded release.
         Services.AddSingleton<IPayloadEncryptor>(new AgeSharpPayloadEncryptor());
+        // The GnuPG outer-lock check, stubbed to pass. The tests below that are about that
+        // gate register their own outcome, which wins: the last registration resolves.
+        Services.AddSingleton<IOuterLockVerifier>(new FakeOuterLockVerifier());
     }
 
     // Scripted connectivity probe for the airgap gate.
@@ -130,6 +133,120 @@ public class OwnerFormValidationTests : TestContext
 
         downloader.Calls.Should().BeEmpty();
         verifier.ForeignCalls.Should().Be(1);
+    }
+
+    // The outer-lock gate, on a REAL backup. GnuPG is absent (or unreachable), so nothing
+    // independent of BouncyCastle has opened the layer BouncyCastle wrote. "Could not
+    // check" and "checked and wrong" are the same fact about the backup, so a real backup
+    // refuses on both.
+    [Fact]
+    public void Generate_WhenTheOuterLockCannotBeChecked_RefusesARealBackup()
+    {
+        var downloader = new NoopDownloader();
+        Services.AddSingleton<IFileDownloader>(downloader);
+        Services.AddSingleton<IOuterLockVerifier>(new FakeOuterLockVerifier(
+            OuterLockOutcome.Unavailable, "A browser cannot run GnuPG"));
+
+        var cut = RenderComponent<Owner>();
+        cut.FindAll(TopLevelSeedSelector).First()
+            .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+        AttestOffline(cut); // offline + attested → a real, unwatermarked backup
+
+        cut.Find("button.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.FindAll(".banner-loud").Should().Contain(el =>
+                el.TextContent.Contains("REFUSED") && el.TextContent.Contains("outer OpenPGP lock"));
+        }, timeout: TimeSpan.FromSeconds(10));
+
+        downloader.Calls.Should().BeEmpty();
+    }
+
+    // The same outcome on a watermarked practice backup goes through. It has to: the
+    // hosted demo runs in a browser that cannot reach gpg at all, and refusing there would
+    // leave nothing to demonstrate. What must NOT happen is that it goes through quietly,
+    // so the transcript says the check did not run.
+    [Fact]
+    public void Generate_WhenTheOuterLockCannotBeChecked_StillProducesAWatermarkedTestBackup()
+    {
+        var downloader = new NoopDownloader();
+        Services.AddSingleton<IFileDownloader>(downloader);
+        Services.AddSingleton<IOuterLockVerifier>(new FakeOuterLockVerifier(
+            OuterLockOutcome.Unavailable, "A browser cannot run GnuPG"));
+
+        var cut = RenderComponent<Owner>();
+        cut.FindAll(TopLevelSeedSelector).First()
+            .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+        AttestOffline(cut, attest: false); // no attestation → INSECURE-TEST
+
+        cut.Find("button.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            downloader.Calls.Should().ContainSingle(c => c.Filename.StartsWith("INSECURE-TEST-"));
+        }, timeout: TimeSpan.FromSeconds(10));
+
+        // The transcript is behind a disclosure, so open it and read what it admits to.
+        cut.FindAll("button").First(b => b.TextContent.Contains("Show details")).Click();
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.Should().Contain("was NOT opened by anything independent");
+        }, timeout: TimeSpan.FromSeconds(10));
+    }
+
+    // Failed is not Unavailable: it means this build produced an envelope GnuPG cannot
+    // open, which is a fact about the code rather than about the machine. That refuses
+    // even for a practice backup, because a practice run whose output is malformed is
+    // exactly the signal the gate exists to raise.
+    [Fact]
+    public void Generate_WhenGnuPgRejectsTheEnvelope_RefusesEvenATestBackup()
+    {
+        var downloader = new NoopDownloader();
+        Services.AddSingleton<IFileDownloader>(downloader);
+        Services.AddSingleton<IOuterLockVerifier>(new FakeOuterLockVerifier(
+            OuterLockOutcome.Failed, "gpg: decryption failed: Bad session key"));
+
+        var cut = RenderComponent<Owner>();
+        cut.FindAll(TopLevelSeedSelector).First()
+            .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+        AttestOffline(cut, attest: false); // INSECURE-TEST, and still refused
+
+        cut.Find("button.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.FindAll(".banner-loud").Should().Contain(el =>
+                el.TextContent.Contains("REFUSED") && el.TextContent.Contains("Bad session key"));
+        }, timeout: TimeSpan.FromSeconds(10));
+
+        downloader.Calls.Should().BeEmpty();
+    }
+
+    // What the gate is handed matters as much as what it answers. The armored envelope and
+    // the age file that was wrapped in it are two different things, and passing the same
+    // bytes twice would make the comparison pass for free.
+    [Fact]
+    public void Generate_HandsTheOuterLockCheckTheEnvelopeAndTheInnerAgeFile()
+    {
+        var verifier = new FakeOuterLockVerifier();
+        Services.AddSingleton<IFileDownloader>(new NoopDownloader());
+        Services.AddSingleton<IOuterLockVerifier>(verifier);
+
+        var cut = RenderComponent<Owner>();
+        cut.FindAll(TopLevelSeedSelector).First()
+            .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+        AttestOffline(cut);
+
+        cut.Find("button.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            verifier.Calls.Should().ContainSingle();
+            verifier.Calls[0].Armored.Should().StartWith("-----BEGIN PGP MESSAGE-----");
+            verifier.Calls[0].ExpectedInnerLength.Should().BeGreaterThan(0);
+            verifier.Calls[0].KeyLength.Should().Be(32);
+        }, timeout: TimeSpan.FromSeconds(10));
     }
 
     [Fact]

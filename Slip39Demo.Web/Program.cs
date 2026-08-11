@@ -18,6 +18,10 @@ builder.Services.AddScoped<IIndependentVerifier, JsIndependentVerifier>();
 // AgeSharp. It is the DEMONSTRATION build and watermarks its output
 // INSECURE-TEST; the Tails AppImage runs the official age binary instead.
 builder.Services.AddScoped<IPayloadEncryptor, AgeSharpPayloadEncryptor>();
+// The outer OpenPGP lock cannot be checked here: a browser cannot run GnuPG, and asking
+// BouncyCastle to open the envelope it just wrote would prove only self-consistency. This
+// reports Unavailable, which limits this build to watermarked INSECURE-TEST backups.
+builder.Services.AddScoped<IOuterLockVerifier, BrowserOuterLockVerifier>();
 // Airgap indicator + INSECURE-TEST watermark gate.
 builder.Services.AddScoped<IConnectivityProbe, JsConnectivityProbe>();
 

@@ -47,6 +47,39 @@ public class AppImageEncryptorReachabilityTests
         return found.Values;
     }
 
+    // The same invariant for the outer-lock check, and for the same reason. The layer this
+    // verifies was written in-process by BouncyCastle, so the only implementation that can
+    // vouch for it is one from outside this repository: the system's GnuPG, reached through
+    // the Rust shell. An IOuterLockVerifier declared anywhere else and reachable from the
+    // AppImage would be a candidate for a future "fall back to checking it ourselves",
+    // which always passes and therefore reads as evidence while proving nothing.
+    //
+    // BrowserOuterLockVerifier lives in Slip39Demo.Web, which the AppImage does not link,
+    // so it cannot be the thing that answers here.
+    [Fact]
+    public void Every_outer_lock_verifier_reachable_from_the_appimage_frontend_is_declared_in_it()
+    {
+        var tauriAssembly = typeof(Slip39Demo.Tauri.Services.TauriInterop).Assembly;
+        var linked = OurAssembliesLinkedFrom(tauriAssembly);
+
+        linked.Select(assembly => assembly.GetName().Name)
+            .Should().Contain("Slip39Demo.UI",
+                "the walk must reach the shared UI, or it is not examining anything");
+
+        var offenders = linked
+            .SelectMany(assembly => assembly.GetTypes()
+                .Where(type => !type.IsAbstract && !type.IsInterface)
+                .Where(type => typeof(IOuterLockVerifier).IsAssignableFrom(type))
+                .Select(type => (type, assembly)))
+            .Where(found => found.assembly != tauriAssembly)
+            .Select(found => $"{found.type.FullName} (in {found.assembly.GetName().Name})")
+            .ToArray();
+
+        offenders.Should().BeEmpty(
+            "every IOuterLockVerifier reachable from the AppImage frontend must be declared "
+            + $"in Slip39Demo.Tauri; found declared elsewhere: {string.Join(", ", offenders)}");
+    }
+
     [Fact]
     public void Every_payload_encryptor_reachable_from_the_appimage_frontend_is_declared_in_it()
     {

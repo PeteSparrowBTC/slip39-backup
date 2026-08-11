@@ -350,6 +350,7 @@
     [Inject] IFileDownloader Downloader { get; set; } = null!;
     [Inject] IIndependentVerifier Verifier { get; set; } = null!;
     [Inject] IPayloadEncryptor Encryptor { get; set; } = null!;
+    [Inject] IOuterLockVerifier OuterLock { get; set; } = null!;
 
     readonly OwnerFormModel model = new();
     bool isGenerating;
@@ -555,7 +556,15 @@
             Slip39Extendable: true,
             Notes: null);
 
-        var payloadText = PayloadEmitter.Emit(payload);
+        // Emitted through the round-trip gate, not through PayloadEmitter directly: the
+        // text must parse back into exactly this payload before anything is encrypted.
+        // The format writes each value on one line, so a passphrase with a line break in
+        // it (or, before the parser was fixed, a leading space) produced a backup that
+        // passed every other check and recovered a DIFFERENT wallet. See PayloadRoundTrip.
+        var emitted = PayloadRoundTrip.EmitChecked(payload);
+        if (emitted.IsFailure)
+            return Result.Failure<BuildOutcome>(emitted.Error);
+        var payloadText = emitted.Value;
         var payloadBytes = Encoding.UTF8.GetBytes(payloadText);
 
         // k, the SLIP-39 master secret. Either the 32 bytes the user entered above or 32
@@ -616,6 +625,20 @@
         var wrapped = PgpEnvelope.EncryptArmored(ciphertext, k);
         if (wrapped.IsFailure)
             return Result.Failure<BuildOutcome>(wrapped.Error);
+
+        // Outer-lock gate. The age layer was written by the official age binary, so it is
+        // already the work of an implementation we did not write; this layer was written
+        // in-process by BouncyCastle, and asking BouncyCastle to open it would prove only
+        // that it is self-consistent. So the system's own GnuPG opens it and must return
+        // the age file byte for byte.
+        //
+        // Runs here, inside the build, so k does not have to travel out on BuildOutcome
+        // and sit on the page for the lifetime of the result panel.
+        var outerLock = await OuterLock.VerifyAsync(wrapped.Value, ciphertext, k);
+        var refusal = OuterLockRefusal(outerLock);
+        if (refusal is not null)
+            return Result.Failure<BuildOutcome>(refusal);
+
         var fingerprint = Bip32MasterFingerprint.Compute(firstSeed, firstPp);
         var record = VerificationRecord.Build(
             createdDate: $"{DateTime.UtcNow:yyyy-MM-dd}",
@@ -634,9 +657,50 @@
         // exactly satisfying the threshold structure (slip39-js rejects extras).
         var verifySubsets = VerificationSubsets.BuildCoveringSubsets(cfg, mnemonics);
 
+        // One transcript covering both locks, in the order they were applied. When the
+        // outer check could not run (a test-only backup on a machine without gpg) the
+        // transcript says so in a warning rather than falling silent, so a reader can tell
+        // an unchecked backup from a checked one.
+        var transcriptLines = outerLock.Outcome == OuterLockOutcome.Unavailable
+            ? (IReadOnlyList<TranscriptLine>)[new TranscriptLine(TranscriptLineKind.Warning,
+                "The outer OpenPGP lock was NOT opened by anything independent of the library "
+                + $"that wrote it. {outerLock.Detail}")]
+            : outerLock.Transcript;
+
+        var transcript = cipherResult.Value.Transcript with
+        {
+            Lines = [..cipherResult.Value.Transcript.Lines, ..transcriptLines],
+        };
+
         return new BuildOutcome(bundle, mnemonics.Count, fingerprint, verifySubsets, ciphertext, payloadText,
-            cipherResult.Value.Transcript, keyChoice.Value.Source);
+            transcript, keyChoice.Value.Source);
     }
+
+    // What an outer-lock outcome costs. Kept apart from the check itself so the rule is
+    // legible in one place: returns the refusal message, or null to continue.
+    //
+    // A REAL backup refuses on anything short of Verified. "GnuPG disagreed" and "GnuPG is
+    // not here" are different facts about the machine but the same fact about the backup:
+    // nothing independent has opened its outer layer, and that layer is the one written by
+    // code from this repository. Tails ships GnuPG, so on the machine this tool is built
+    // for the Unavailable branch does not fire; where it does, the message says what to do.
+    //
+    // An INSECURE-TEST backup reports and continues. It is watermarked, it is practice, and
+    // the hosted demo runs in a browser that cannot reach gpg at all, so refusing there
+    // would leave nothing to demonstrate. Failed still refuses even then: that one is not a
+    // fact about the machine, it means this build produced an envelope gpg cannot open.
+    string? OuterLockRefusal(OuterLockVerification verification) =>
+        verification.Outcome switch
+        {
+            OuterLockOutcome.Verified => null,
+            OuterLockOutcome.Failed =>
+                "Backup REFUSED — GnuPG could not open the outer lock of the file this build "
+                + $"just produced. Nothing was saved. Details: {verification.Detail}",
+            _ when IsTestOnly => null,
+            _ => "Backup REFUSED — the outer OpenPGP lock could not be checked by an "
+                 + "implementation independent of the one that wrote it, and this is a real "
+                 + $"backup. Nothing was saved. Details: {verification.Detail}",
+        };
 
     // Every seed the form holds: the shared top-level one and each cosigner's own words.
     // All of them are compared against a pasted key, not just the first, because the
@@ -760,6 +824,23 @@
             warnings.Add(new(false,
                 $"Cosigners {string.Join(", ", seedGroup.Select(x => x.Label))} share one seed. "
                 + "Multisig is strongest with independent seeds on separate devices."));
+
+        // ADVISORY: whitespace at the start or end of a passphrase. Perfectly legal (BIP-39
+        // takes any UTF-8 string) and it now survives the payload format intact, so this
+        // does not block. It is still worth saying, because MANUAL-RECOVERY.txt asks a
+        // human to read the passphrase off a decrypted file and type it into a wallet, and
+        // a leading or trailing space is invisible there. An heir who cannot see it will
+        // conclude the backup is broken.
+        warnings.AddRange(model.Cosigners
+            .Select((c, i) => (
+                Label: string.IsNullOrWhiteSpace(c.Id) ? $"#{i + 1}" : c.Id,
+                Passphrase: c.Passphrase))
+            .Where(x => !string.IsNullOrEmpty(x.Passphrase) && x.Passphrase != x.Passphrase.Trim())
+            .Select(x => new CosignerWarning(false,
+                $"The passphrase for cosigner {x.Label} begins or ends with a space. That is "
+                + "kept exactly as typed and the backup will recover correctly, but the space "
+                + "is invisible in the recovery document, so whoever recovers this wallet will "
+                + "not see that it is there. Remove it unless it is deliberate.")));
 
         return warnings;
     }

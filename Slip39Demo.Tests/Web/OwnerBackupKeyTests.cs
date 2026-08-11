@@ -55,6 +55,9 @@ public class OwnerBackupKeyTests : TestContext
         Services.AddSingleton<IIndependentVerifier>(new FakeVerifier());
         Services.AddSingleton<IConnectivityProbe>(new FakeProbe());
         Services.AddSingleton<IPayloadEncryptor>(new AgeSharpPayloadEncryptor());
+        // The GnuPG outer-lock check, stubbed to pass. Nothing in this file is about that
+        // gate, and the real one needs a gpg binary these tests must not depend on.
+        Services.AddSingleton<IOuterLockVerifier>(new FakeOuterLockVerifier());
         // A default so a test that only inspects markup does not have to register one.
         // Tests that assert on downloads register their own, which wins: the last
         // registration is the one resolved.

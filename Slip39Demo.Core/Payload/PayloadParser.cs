@@ -126,7 +126,7 @@ public static class PayloadParser
                     }
                     break;
                 default:
-                    return Fail(i, $"unknown key '{key}'");
+                    return Fail(i, $"unknown key {Redact(key)}");
             }
         }
 
@@ -151,14 +151,50 @@ public static class PayloadParser
     }
 
     // Splits "key: value" into ("key", "value"). Missing colon -> empty value.
+    //
+    // Drops EXACTLY ONE space after the colon, the single separator PayloadEmitter
+    // writes, and returns everything after it untouched.
+    //
+    // WHY NOT TrimStart, WHICH IS WHAT THIS USED TO DO
+    // TrimStart silently ate leading whitespace, and one of the values on these lines
+    // is a BIP-39 passphrase. A passphrase of " hunter2" was written correctly and read
+    // back as "hunter2", which derives a DIFFERENT wallet: a valid, empty one. Nothing
+    // in the pipeline noticed. The ciphertext was well formed, the independent verifier
+    // compared it against the same text we had just emitted, and the wallet fingerprint
+    // in the verification record was computed from the form rather than from the
+    // payload, so it agreed too. The loss would surface years later as a recovery that
+    // completes and finds no funds.
+    //
+    // Reading one space also repairs backups already in the field: those files carry
+    // the intended value verbatim, it was only the read side that discarded it.
+    //
+    // The cost is that a hand-indented line ("key:    value") now keeps three of those
+    // spaces rather than none. That is the right way round: this format is canonical
+    // output from PayloadEmitter, and guessing which spaces a human meant is exactly
+    // how the trap got here. PayloadRoundTrip is the backstop for whatever the format
+    // still cannot carry (a value containing a line break), and it refuses rather than
+    // guesses.
     static (string Key, string Value) SplitKV(string s)
     {
         var idx = s.IndexOf(':');
         if (idx < 0) return (s.Trim(), "");
         var k = s.Substring(0, idx).Trim();
-        var v = idx + 1 < s.Length ? s.Substring(idx + 1).TrimStart() : "";
-        return (k, v);
+        var rest = s.Substring(idx + 1);
+        return (k, rest.StartsWith(' ') ? rest.Substring(1) : rest);
     }
+
+    // Echoes an unrecognised key so the user can find the line, but only when it is
+    // shaped like a key name.
+    //
+    // A value that landed where a key should be must not be echoed. The way that
+    // happens is a payload value containing a line break: the remainder of a passphrase
+    // or seed phrase ends up on its own line and arrives here as a "key". This message
+    // is rendered in a banner that gets photographed and pasted into bug reports, so it
+    // reports the shape instead.
+    static string Redact(string key) =>
+        key.Length is > 0 and <= 40 && key.All(ch => char.IsAsciiLetterOrDigit(ch) || ch is '_' or '-')
+            ? $"'{key}'"
+            : $"of {key.Length} characters, which is not a key name";
 
     // Strips a single layer of surrounding double quotes from a label.
     static string StripQuotes(string v) =>
