@@ -41,18 +41,48 @@ The Taproot lesson is the one to keep: **an added layer can become the new
 ceiling.** AES-256 sits above age's 128-bit file key, so it raises the floor.
 A weaker outer layer would have lowered the roof.
 
-## 2. All three payload forms ship; the wrapper is protection, not a gate
+## 2. One payload artifact: REVERSED, 2026-08-11
 
-The bundle contains `payload.age`, `payload.age.txt` and `payload.age.gpg`, and
-**any one of them recovers the wallet**.
+**This section said the opposite, and it was wrong.** It specified that
+`payload.age`, `payload.age.txt` and `payload.age.gpg` all ship, that any one
+recovers the wallet, and it instructed against "simplifying" to the wrapped form
+alone. The bundle now contains exactly one ciphertext, **`payload.age.gpg.asc`**.
 
-**Why.** Double hashing costs nothing operationally. Double *encryption* costs a
-recovery step that must still work decades later, performed by someone under
-stress with tools that must still exist. Shipping only the wrapped form would
-buy resistance to cryptanalysis, the least likely failure, by adding to recovery
-complexity, the most likely one.
+**Why the original was incoherent.** Decision 1 justifies the wrapper on
+confidentiality: an attacker must break both formats. Shipping the unwrapped age
+file beside it means an attacker who obtains the folder takes the weaker file and
+breaks one format. The storage guidance made that certain rather than merely
+possible, because it told the owner to put `payload.age` in the password manager, on
+the USB and in the safe. The availability argument was real, and it was paid for
+with the entire confidentiality argument of the decision directly above it, which
+went unnoticed because the two were written at different times.
 
-Do not "simplify" this by shipping only `payload.age.gpg`.
+The lesson generalises past this instance: **a defence-in-depth layer is worth
+nothing while the thing it defends is also shipped undefended.**
+
+**Why armored rather than binary.** Armor is a lossless re-encoding, demonstrable in
+one command (`gpg --enarmor` then `gpg --dearmor` returns identical bytes), so the
+binary form offers no capability the text form lacks. Text survives every channel
+this artifact must pass: a password-manager note, an email body, a printed page, a
+retyping by hand. OpenPGP armor also carries a CRC24, so a mangled paste is
+detected, and age's armor has no checksum at all, which is the second reason the
+shipped text is PGP armor rather than age armor.
+
+**The availability cost, now paid rather than dodged.** Recovery needs both locks
+off, in order. Mitigated rather than ignored: GnuPG ships with Tails while age does
+not, this tool unwraps OpenPGP in-process so recovery never requires GnuPG
+installed, and both `MANUAL-RECOVERY.txt` and `VERIFY-THIS-BACKUP.txt` give the two
+commands with the same key.
+
+**The armor is self-describing.** A `Comment:` header names what the file is and how
+to recover it, so somebody who finds this text alone in a password manager, with no
+bundle around it, is not holding an anonymous base64 block. `Version:` is
+suppressed, since fingerprinting the producing library benefits no reader.
+
+**If this is revisited**, the question is not "would a second copy help an heir", it
+is "does a second copy hand an attacker the weaker file". Anything shipped beside
+the wrapped form must be at least as strong as it, or the wrapper stops meaning
+anything.
 
 ## 3. Both layers use the same K, and this bounds what the cascade hedges
 

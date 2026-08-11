@@ -14,9 +14,10 @@ The short form:
 - **The payload is wrapped twice**, age inside OpenPGP AES-256. Nesting composes:
   an attacker must break both. It lifts the post-quantum margin from 2^64 to
   2^128, because age's file key is 128 bits.
-- **All three payload forms ship** (`payload.age`, `payload.age.txt`,
-  `payload.age.gpg`) and any ONE recovers the wallet. The wrapper is protection,
-  not a gate. Do not ship only the wrapped form.
+- **One payload artifact ships**: `payload.age.gpg.asc`, armored. This REVERSES an
+  earlier decision that shipped the unwrapped forms alongside it, which handed
+  anyone who obtained the folder the weaker file and so nullified the wrapper.
+  Anything shipped beside it must be at least as strong as it.
 - **Both layers take the same K.** This hedges a cipher or format break. It does
   NOT hedge a break that recovers the passphrase itself. Accepted deliberately:
   independent keys would make recovery a scripted derivation no heir can perform
