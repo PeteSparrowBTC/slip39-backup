@@ -46,11 +46,23 @@ permissions:
   pages: write
   id-token: write
 
-# One deployment at a time. A tag push and a main push can arrive together, and the
-# later one should win rather than race the earlier one to the same environment.
+# One deployment at a time, and no cancelling.
+#
+# A tag push and a main push do arrive together at release time: the merge moves main,
+# then the tag is pushed at the same commit. With cancel-in-progress: true the second to
+# arrive kills the first, and which one that is comes down to timing. Cancelling the tag
+# run is the bad outcome, because that run is the one stamping the release version into
+# the build, and losing it leaves the demo quietly reporting whatever
+# Directory.Build.props happened to say.
+#
+# false queues them instead, so both finish and the later completion is what the demo
+# serves. That does not guarantee the tag run wins, and nothing here can; it guarantees
+# only that no deployment is destroyed by another. dice-to-seed sidesteps the race by
+# deploying its demo on tags alone, a defensible different choice, and this repository
+# deliberately keeps the demo tracking main between releases.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:

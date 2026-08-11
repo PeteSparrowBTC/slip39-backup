@@ -13,6 +13,26 @@ name: Build AppImage
 on:
   # Manual trigger, build an AppImage from any branch on demand.
   workflow_dispatch:
+  # Pull requests into main, with NO paths filter, deliberately.
+  #
+  # This is the gate that matters, because main only ever moves through a pull
+  # request. It was missing: build-and-release.yml held the only pull_request
+  # trigger in the repository and was removed when pages.yml took over the demo,
+  # so for a while nothing ran on a pull request at all. The check that caught the
+  # broken age fetch in build-appimage.sh would not have run.
+  #
+  # No paths filter here, even though the push trigger below has one, for two
+  # reasons. A filtered-out pull request reports no check rather than a passing
+  # one, so requiring this check would make every docs-only pull request
+  # permanently unmergeable. And a change outside the filter can still break the
+  # build: the filter is a guess about what matters, and for an artifact people run
+  # against real seed phrases the guess is not worth the saved minutes.
+  #
+  # Nothing is published from a pull request. The release step is guarded by
+  # startsWith(github.ref, 'refs/tags/v'), so a pull request builds, tests and
+  # smoke-tests the AppImage and stops there.
+  pull_request:
+    branches: [main]
   # Rebuild whenever app code changes on main.
   push:
     branches: [main]
