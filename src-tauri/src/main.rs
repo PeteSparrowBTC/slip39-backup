@@ -34,13 +34,21 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod age;
+mod gpg;
 mod net;
 mod save;
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![net::is_online, save::save_file, age::age_encrypt])
+        .invoke_handler(tauri::generate_handler![
+            net::is_online,
+            save::save_file,
+            age::age_encrypt,
+            // Verifies the outer OpenPGP lock with the system gpg, so the artifact that
+            // ships is checked by a program this project did not write. See gpg.rs.
+            gpg::gpg_decrypt
+        ])
         .run(tauri::generate_context!())
         .expect("slip39-backup: failed to start the window");
 }
