@@ -97,4 +97,20 @@ public class OutputBundleBuilderTests
         text.Should().Contain("3rditeration.github.io/slip39");
         text.Should().NotContainAny("payload/IMPORTANT", "AGE-SECRET-KEY"); // no bundle-internal paths, no keys
     }
+
+    // The human half of the whitespace fix. The parser now keeps a leading space in a
+    // passphrase, so a recovered wallet.txt can hold one, and the person reading that file
+    // cannot see it. Without this paragraph they would type the passphrase without the
+    // space, restore an empty wallet, and have every reason to conclude the backup had
+    // failed. PayloadWhitespaceTests covers the code half.
+    [Fact]
+    public void ManualRecoveryGuide_ExplainsThatOneSpaceIsTheSeparatorAndTheRestIsTheValue()
+    {
+        var text = ManualRecoveryGuide.Text;
+
+        text.Should().Contain("ONE space after the colon");
+        text.Should().Contain("count the spaces");
+        text.Should().Contain("xpub_fingerprint",
+            "the mismatch that sends someone looking is the fingerprint, so the advice hangs off it");
+    }
 }

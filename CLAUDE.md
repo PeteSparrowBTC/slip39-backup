@@ -29,16 +29,32 @@ The short form:
 - **The OpenPGP layer is in-process on BouncyCastle**, so recovery never needs
   GnuPG installed. Keep handling gpg's compression: GnuPG compresses by default,
   so real files carry packets we never produce ourselves.
+- **The system's GnuPG opens that layer before a real backup is released**, and
+  must return the age file byte for byte. It is the one layer written by code from
+  this repository, and BouncyCastle opening its own envelope agrees with itself
+  whatever it wrote. A real backup **fails closed**, GnuPG missing included; an
+  INSECURE-TEST backup continues but says in the transcript that nothing
+  independent opened it. Do not make the browser build verify with BouncyCastle to
+  turn that into a pass: a check that always passes reads as evidence.
+- **The wallet payload goes out through `PayloadRoundTrip.EmitChecked`**, which
+  reparses and compares before anything is encrypted, and refuses by name if a
+  value does not survive. The format writes one value per line, so it cannot carry
+  a line break, and the old parser also ate leading whitespace: a passphrase of
+  `" hunter2"` recovered a different wallet with every check still passing.
+  Refusals never echo the value, because the values are seed words and
+  passphrases and the message lands in an on-screen banner.
 - **Dice entropy for K is 50 rolls, not 99**, XORed with the system RNG, never
   replacing it. Never reuse the seed's rolls.
 - **Rejected:** a browser verifier shipped in our own bundle (it cannot verify
   its own producer), and zip password protection (the ubiquitous variant is
   ZipCrypto, which is broken, and our plaintext prefix is published).
 
-**Where the real risk sits**, in order: operator error; the `PayloadParser`
-leading-whitespace trap; key generation; supply chain; implementation bugs;
-cryptanalysis last. The first two are unfixed. Do not propose work on the last
-while they remain open.
+**Where the real risk sits**, in order: operator error; key generation; supply
+chain; implementation bugs; cryptanalysis last. The first is unfixed. Do not
+propose work on the last while it remains open. The `PayloadParser`
+leading-whitespace trap used to sit second on that list and was fixed on
+2026-08-11; the decisions document records what made it worse than the trim
+itself, which is the part worth reading before adding a field to the payload.
 
 ## CRITICAL: main moves only through a pull request
 

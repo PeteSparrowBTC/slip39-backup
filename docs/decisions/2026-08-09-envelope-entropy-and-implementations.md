@@ -138,6 +138,10 @@ decrypt path must keep handling all of gpg's compression algorithms, or recovery
 fails on precisely the files most heirs are handed while every test using our own
 envelopes passes. This is covered by tests against a real GnuPG.
 
+**In-process for recovery does not mean in-process for verification.** See section
+10: because this layer is written by code from this repository, the system's GnuPG
+opens it before a real backup is released.
+
 ## 6. Rejected: a browser-based verifier shipped in our own bundle
 
 A single-file HTML checker was built and then removed.
@@ -234,10 +238,92 @@ Ranked by likelihood of actually costing someone their coins. Effort belongs at
 the top of this list, not the bottom.
 
 1. Operator error, above all one location accumulating threshold-many shares plus the blob
-2. The `PayloadParser` leading-whitespace trap: a passphrase with a leading space silently recovers a different wallet and defeats every automated check
-3. Key generation, unverifiable from inside, catastrophic if wrong
-4. Supply chain, with no reproducible builds
-5. An implementation bug in the encryption path
-6. Cryptanalysis of the ciphers themselves
+2. Key generation, unverifiable from inside, catastrophic if wrong
+3. Supply chain, with no reproducible builds
+4. An implementation bug in the encryption path
+5. Cryptanalysis of the ciphers themselves
 
-Items 1 and 2 are unfixed. Do not propose work on item 6 while they remain open.
+Item 1 is unfixed. Do not propose work on item 5 while it remains open.
+
+**Fixed, 2026-08-11: the `PayloadParser` leading-whitespace trap**, which used to
+sit second on this list. `SplitKV` trimmed leading whitespace off every value
+after `key: `, and one of those values is a BIP-39 passphrase, so a passphrase of
+`" hunter2"` was written correctly and read back as `"hunter2"`: a different
+wallet, valid and empty.
+
+What made it worth ranking above key generation was not the trim, it was that
+nothing could see it. The age file was well formed. The independent verifier
+compared the ciphertext against the same text the emitter had produced, so it
+agreed. The master fingerprint in the verification record was computed from the
+form rather than from the payload, so it agreed too. Every check the tool
+performs passed on a backup that would recover the wrong wallet, and it would
+have surfaced years later as "the backup is broken" with nothing to diagnose.
+
+The fix has two halves, and the second is the one that matters for anything added
+to the payload later:
+
+- The parser drops exactly the one separator space the emitter writes, instead of
+  trimming. This also repairs backups already in the field: those files carry the
+  intended value verbatim, only the read side discarded it.
+- `PayloadRoundTrip.EmitChecked` is the only emit path generation uses. It emits,
+  reparses, compares field by field, and refuses by name if anything differs. The
+  residual hole (a value containing a line break, which a one-line-per-value
+  format cannot carry) is now a refusal rather than a substitution. A test only
+  covers values somebody thought of; this runs on what the owner typed.
+
+Refusal messages never echo the value they are complaining about, and the
+parser's "unknown key" error no longer quotes non-identifier text. Both land in
+an on-screen banner, and the values are seed words and passphrases.
+
+## 10. The outer lock is opened by the system GnuPG before a real backup is released
+
+Added 2026-08-11. Generation runs `gpg --decrypt` on the armored envelope it has
+just produced and requires the exact age file back, byte for byte, before the
+backup reaches the user.
+
+**Why.** Decision 4 put the official `age` binary on the encryption path because
+encryption failures are silent. That argument applies to the second layer too, and
+until now nothing implemented it: the OpenPGP envelope was the only part of the
+shipped artifact written by code from this repository and never opened by anything
+else. BouncyCastle asked to open its own envelope agrees with itself whatever it
+wrote, which is not a check, and every existing test that used our own envelopes
+would keep passing.
+
+**Why the system GnuPG and not a bundled JavaScript OpenPGP library.** A checker
+shipped inside our own bundle cannot vouch for its own producer, which is what got
+the in-bundle browser verifier deleted (decision 6). GnuPG is already on the
+target machine: Tails lists it in its own included-software page and does not ship
+age. So the outer lock is checked by a program Tails put there and the GnuPG
+project maintains, and nothing has to be bundled to get a genuinely foreign
+opinion.
+
+**The three outcomes, and why they are three.** `Verified`, `Unavailable` (gpg
+could not be run at all) and `Failed` (gpg ran and disagreed). Collapsing the last
+two into a success/failure pair would push the distinction into string matching on
+an error message, and the distinction carries the policy:
+
+- A REAL backup refuses on anything short of `Verified`, GnuPG missing included.
+  "Could not check" and "checked and wrong" are different facts about the machine
+  but the same fact about the backup. Tails ships GnuPG, so on the machine this
+  tool is built for the `Unavailable` branch does not fire.
+- A watermarked INSECURE-TEST backup continues on `Unavailable`, and the
+  transcript says in a warning that nothing independent opened it. The hosted demo
+  runs in a browser that cannot start a subprocess at all, and refusing there
+  would leave nothing to demonstrate.
+- `Failed` refuses even for a test backup. That is not a fact about the machine:
+  it means this build produced an envelope GnuPG cannot open, which is exactly the
+  signal the gate exists to raise.
+
+**Do not make the browser build verify with BouncyCastle** to turn `Unavailable`
+into `Verified`. BouncyCastle wrote the envelope, so opening it proves only
+self-consistency, and a check that always passes is worse than a missing one
+because it reads as evidence. `AppImageEncryptorReachabilityTests` enforces the
+structural half: every `IOuterLockVerifier` reachable from the AppImage frontend
+is declared in `Slip39Demo.Tauri`, so an in-process one cannot be wired in there.
+
+**Where the judgement lives.** `src-tauri/src/gpg.rs` reports what gpg said and
+decides nothing. `TauriPgpVerifier` turns that report into one of the three
+outcomes. `Owner` decides what an outcome costs, because that depends on whether
+the backup is real. Each of the three has its own tests, and the passphrase goes
+to gpg on stdin rather than on the command line, where any other process could
+read it.

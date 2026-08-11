@@ -180,6 +180,19 @@ Open wallet.txt (or run: cat wallet.txt). It is plain text:
 Enter the seed words (and passphrase, if any) into a hardware
 wallet or wallet software of your choice to restore the funds.
 
+SPACES IN THE PASSPHRASE LINE. Every line reads "key: value"
+with exactly ONE space after the colon. That space is the
+separator; everything after it belongs to the value. So a line
+reading
+    passphrase:  hunter2
+carries the passphrase " hunter2", with a leading space, and a
+line whose last character is a space carries a passphrase that
+ends in one. This matters only for the passphrase, and only
+rarely, but a space you cannot see is the difference between the
+right wallet and an empty one. If the wallet you restore shows
+an xpub_fingerprint different from the one in this file, then
+count the spaces on that line before looking anywhere else.
+
 IF SOMETHING FAILS
 ----------------------------------------------------------------
  - "Invalid mnemonic checksum"  -> a word is wrong in one share.
