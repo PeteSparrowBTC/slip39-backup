@@ -17,9 +17,12 @@ namespace Slip39Demo.Core.Pgp;
 // AES-256 here restores the headroom. That is the one structural weakness we
 // identified in age v1, and this is the mechanism that addresses it.
 //
-// The cost is a second thing that must still work at recovery time, which is why
-// payload.age ships alongside payload.age.gpg rather than being replaced by it.
-// An heir who manages only the age step still recovers the wallet.
+// The cost is a second thing that must still work at recovery time. That cost is
+// now paid rather than dodged: ONE artifact ships, payload.age.gpg.asc, and both
+// locks must come off to recover. Shipping the unwrapped age file beside it, as this
+// used to, handed anyone who obtained the folder the weaker file and so nullified
+// the argument above. See decision 2 in
+// docs/decisions/2026-08-09-envelope-entropy-and-implementations.md.
 //
 // WHY BOUNCYCASTLE AND NOT ONLY THE gpg BINARY
 // Three reasons, all about not having a single point of failure:
@@ -64,6 +67,44 @@ public static class PgpEnvelope
     // there is nothing to grind), but weak defaults would matter to anyone who
     // later reused this code with a human-chosen passphrase.
     const HashAlgorithmTag S2kHash = HashAlgorithmTag.Sha256;
+
+    // The header written into the armor. OpenPGP armor carries arbitrary header lines
+    // and readers ignore ones they do not recognise, so this costs nothing and makes
+    // the artifact self-describing: somebody who finds this text alone in a password
+    // manager years from now, with no bundle around it, can see what it is and what to
+    // do with it. Without it the fences say "PGP MESSAGE" and nothing else.
+    const string ArmorComment =
+        "SLIP-39 + age wallet backup. Recover: gpg -d this file, then age -d the result, "
+        + "using threshold-many SLIP-39 shares to rebuild the passphrase. Both locks take "
+        + "the same key. See MANUAL-RECOVERY.txt.";
+
+    // The armored form, and the only ciphertext the bundle ships.
+    //
+    // WHY ARMOR IS THE SHIPPED FORM
+    // Armor is a lossless re-encoding (gpg --enarmor then --dearmor returns identical
+    // bytes), so the binary form offers no capability the text form lacks, while text
+    // survives every channel this artifact must pass through: a password-manager note,
+    // an email body, a printed page, a retyping by hand. OpenPGP armor also carries a
+    // CRC24, so a mangled paste is detected; age's armor has no checksum at all.
+    //
+    // Shipping one file rather than two is the point. Two encodings of one secret means
+    // documenting which goes where, and inviting a reader to assume they differ.
+    public static Result<string> EncryptArmored(byte[] ageFile, byte[] key32) =>
+        Encrypt(ageFile, key32).Bind(binary => Try(() =>
+        {
+            using var output = new MemoryStream();
+            using (var armor = new ArmoredOutputStream(output))
+            {
+                // Version is suppressed: it fingerprints the producing library and
+                // version for no benefit to any reader. SetHeader with null removes the
+                // default rather than emitting an empty one.
+                armor.SetHeader(ArmoredOutputStream.HeaderVersion, null);
+                armor.SetHeader("Comment", ArmorComment);
+                armor.Write(binary, 0, binary.Length);
+            }
+
+            return Encoding.ASCII.GetString(output.ToArray());
+        }, "OpenPGP armor failed"));
 
     public static Result<byte[]> Encrypt(byte[] ageFile, byte[] key32) =>
         ValidateKey(key32).Bind(_ => Try(() =>
@@ -157,7 +198,9 @@ public static class PgpEnvelope
     static string ToHexPassphrase(byte[] key32) =>
         Convert.ToHexString(key32).ToLowerInvariant();
 
-    static Result<byte[]> Try(Func<byte[]> action, string prefix)
+    // Generic rather than byte[]-only: the armored path returns text, and a second
+    // near-identical helper is how the two drift apart.
+    static Result<T> Try<T>(Func<T> action, string prefix)
     {
         try
         {
@@ -165,7 +208,7 @@ public static class PgpEnvelope
         }
         catch (Exception ex)
         {
-            return Result.Failure<byte[]>($"{prefix}: {ex.GetType().Name}: {ex.Message}");
+            return Result.Failure<T>($"{prefix}: {ex.GetType().Name}: {ex.Message}");
         }
     }
 }
