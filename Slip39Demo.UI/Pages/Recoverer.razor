@@ -11,7 +11,14 @@
 
 <div class="page-head">
     <h1 class="with-icon"><Icon Name="recover" /> Recover wallet</h1>
-    <a href="/" class="btn btn-sm">← Home</a>
+    @* href without a leading slash, deliberately. A leading slash resolves against the
+       domain root and ignores <base href>, so on GitHub Pages, where the app is served
+       from /slip39-backup/, "/" sent the visitor to petesparrowbtc.github.io/ and "/owner"
+       to petesparrowbtc.github.io/owner. Both are outside the app and both are hard 404s:
+       the landing page's own buttons walked the user off the site. It went unnoticed
+       because the Tauri build is served from a root base, where the absolute form happens
+       to work. Base-relative resolves correctly in both hosts. *@
+    <a href="./" class="btn btn-sm">← Home</a>
 </div>
 
 @* Recovery also handles the seed — same airgap indicator as Owner mode

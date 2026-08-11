@@ -1,19 +1,29 @@
 @using Microsoft.AspNetCore.Components.Forms
 
 <div class="panel">
-    <div class="panel-header">Encrypted payload (payload.age)</div>
+    <div class="panel-header">Encrypted payload (payload.age.gpg.asc)</div>
     <div class="panel-body">
+        @* The fence named here is the one the shipped file actually starts with. It said
+           BEGIN AGE ENCRYPTED FILE, which is age's armor, while payload.age.gpg.asc
+           starts with BEGIN PGP MESSAGE: a reader holding the right file was told it
+           looked wrong. Older forms are still accepted, so they are mentioned second
+           rather than dropped. *@
         <p class="hint">
-            Paste the ASCII-armored text (begins with <code>-----BEGIN AGE ENCRYPTED FILE-----</code>),
-            OR upload the binary <code>payload.age</code> file.
+            Upload <code>payload.age.gpg.asc</code>, or paste its text (it begins with
+            <code>-----BEGIN PGP MESSAGE-----</code>). Files from older backups
+            (<code>payload.age</code>, <code>payload.age.txt</code>) still work.
         </p>
         @* get/set two-way bind so pasted/typed armor text reaches the parent. A plain
            @bind on the [Parameter] would only update the local copy (same bug as
            MnemonicInput) and Recover would never see the ciphertext. *@
         <textarea class="input input-mono" rows="6"
                   @bind:get="ArmorText" @bind:set="v => ArmorTextChanged.InvokeAsync(v)" @bind:event="oninput"
-                  placeholder="-----BEGIN AGE ENCRYPTED FILE-----&#10;..."></textarea>
-        <InputFile class="input" OnChange="HandleFileAsync" accept=".age,.txt" />
+                  placeholder="-----BEGIN PGP MESSAGE-----&#10;..."></textarea>
+        @* .asc first, because it is what ships. Its absence from this list was not
+           cosmetic: the file picker filtered out the only ciphertext the bundle
+           produces, so a user could not select their own backup. .gpg covers a binary
+           envelope, and .age/.txt older backups. *@
+        <InputFile class="input" OnChange="HandleFileAsync" accept=".asc,.gpg,.age,.txt" />
         @if (binaryFileName is not null)
         {
             <p class="hint">Uploaded binary: @binaryFileName (@binaryBytes?.Length bytes)</p>

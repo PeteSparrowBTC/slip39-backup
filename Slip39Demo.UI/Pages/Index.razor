@@ -33,9 +33,10 @@
             <p class="hint">
                 Enter your seed words, choose a threshold, and the tool produces a single
                 dated backup zip containing your SLIP-39 share folders and the
-                encrypted <code>payload.age</code> blob.
+                encrypted <code>payload.age.gpg.asc</code> file.
             </p>
-            <a href="/owner" class="btn btn-primary">Start backup →</a>
+            @* Base-relative, no leading slash. See the note in Owner.razor. *@
+            <a href="owner" class="btn btn-primary">Start backup →</a>
         </div>
     </div>
 
@@ -43,10 +44,10 @@
         <div class="panel-body">
             <h2 class="with-icon"><Icon Name="recover" /> Recover wallet</h2>
             <p class="hint">
-                Gather threshold-many SLIP-39 mnemonics and the <code>payload.age</code>
+                Gather threshold-many SLIP-39 mnemonics and the <code>payload.age.gpg.asc</code>
                 ciphertext, then reconstruct your seed words and passphrase here.
             </p>
-            <a href="/recoverer" class="btn">Start recovery →</a>
+            <a href="recoverer" class="btn">Start recovery →</a>
         </div>
     </div>
 </div>
