@@ -173,6 +173,22 @@ jobs:
       - name: Point base href at the Pages subpath
         run: sed -i 's|<base href="/" />|<base href="/slip39-backup/" />|' publish/wwwroot/index.html
 
+      # Deep links. Pages serves static files, and there is no /owner/index.html on disk
+      # because /owner is a client-side route, so a direct visit, a refresh or a
+      # bookmark returned a hard 404. Only navigation from the landing page worked, which
+      # is the one path a developer tests and a reader never takes: the README names the
+      # routes, so anyone following /slip39-backup/owner hit a 404 page.
+      #
+      # Pages serves 404.html for any unmatched path, so a copy of index.html there boots
+      # the app, which then resolves the path with its own router. Copied AFTER the base
+      # href rewrite above, deliberately: a copy taken before it would carry href="/" and
+      # request every asset from the domain root, so the fallback would load nothing.
+      - name: Add the SPA fallback for client-side routes
+        run: |
+          cp publish/wwwroot/index.html publish/wwwroot/404.html
+          grep -q '<base href="/slip39-backup/" />' publish/wwwroot/404.html \
+            || { echo "::error::404.html does not carry the rewritten base href"; exit 1; }
+
       # Without this, Pages runs the output through Jekyll, which discards directories
       # beginning with an underscore, including _framework. The app would not start.
       - name: Add .nojekyll

@@ -4,10 +4,24 @@
 <PageTitle>SLIP-39 + age wallet backup</PageTitle>
 
 <h1 class="with-icon"><Icon Name="lock" /> SLIP-39 + age wallet backup</h1>
+@* The encryption is two layers, and the page used to name only the first. A reader
+   who then found payload.age.gpg in their backup had been told about age and not
+   about OpenPGP, which reads as an unexplained extra file rather than the second
+   lock it is. Both are named here, and the reason is one clause: either one holding
+   is enough. *@
 <p class="subtitle">
-    Secure your BIP-39 wallet with threshold secret-sharing and age encryption.
-    Every operation runs on this machine; nothing is sent anywhere.
+    Secure your BIP-39 wallet with threshold secret-sharing, then two layers of
+    encryption: age inside OpenPGP, so a weakness in either one still leaves the
+    other standing. Every operation runs on this machine; nothing is sent anywhere.
 </p>
+@* The airgap warning belongs here, not only on the two pages that handle seeds.
+   This is where every visitor to the online demo arrives, and it was the one page
+   that said nothing about the network: a reader saw a calm landing page, clicked
+   through, and only then learned the machine was connected. The warning is worth
+   least at the moment someone is about to type a seed and most before they have
+   decided to. Owner still takes the callback, because it gates the watermark. *@
+<ConnectivityBanner />
+
 <p class="hint-loud">
     Running on Tails, fully offline, is required for a real backup, not advised.
 </p>
