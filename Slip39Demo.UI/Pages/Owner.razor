@@ -606,21 +606,22 @@
         // an attacker must break BOTH formats, so the wallet survives a break in
         // either. It also lifts the post-quantum margin from 2^64 to 2^128,
         // because age's 128-bit file key is what Grover would halve.
-        var wrapped = PgpEnvelope.Encrypt(ciphertext, k);
+        var wrapped = PgpEnvelope.EncryptArmored(ciphertext, k);
         if (wrapped.IsFailure)
             return Result.Failure<BuildOutcome>(wrapped.Error);
-
-        var armored = AgeArmor.Encode(ciphertext);
         var fingerprint = Bip32MasterFingerprint.Compute(firstSeed, firstPp);
         var record = VerificationRecord.Build(
             createdDate: $"{DateTime.UtcNow:yyyy-MM-dd}",
             toolVersion: AppVersion.Current,
             label: model.Label ?? "",
             mnemonicsInOrder: mnemonics,
-            payloadAgeBytes: ciphertext,
+            // Fingerprints the file the owner actually holds. Hashing the inner age
+            // bytes would name a file nobody has, so a dry-run check years later could
+            // never match.
+            payloadAgeBytes: Encoding.UTF8.GetBytes(wrapped.Value),
             walletMasterFingerprint: fingerprint);
 
-        var bundle = OutputBundleBuilder.Build(shareZips, ciphertext, armored, record, wrapped.Value);
+        var bundle = OutputBundleBuilder.Build(shareZips, wrapped.Value, record);
 
         // Subsets for the independent verifier: every share covered, each subset
         // exactly satisfying the threshold structure (slip39-js rejects extras).

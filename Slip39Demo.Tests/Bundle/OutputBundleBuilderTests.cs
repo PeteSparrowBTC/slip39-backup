@@ -17,12 +17,10 @@ public class OutputBundleBuilderTests
             ("share-2-of-3.zip", ShareZipWriter.Write(ShareFolder.Build("readme2", "mnemonic-two"))),
             ("share-3-of-3.zip", ShareZipWriter.Write(ShareFolder.Build("readme3", "mnemonic-three"))),
         };
-        var ciphertext = "pretend-age-ciphertext"u8.ToArray();
-        var armored = AgeArmor.Encode(ciphertext);
+        var armoredEnvelope = "-----BEGIN PGP MESSAGE-----\n\npretend\n=abcd\n-----END PGP MESSAGE-----\n";
         var verificationRecord = "fake verification record\nline 2\n";
 
-        var bundle = OutputBundleBuilder.Build(shareZips, ciphertext, armored, verificationRecord,
-            payloadAgeGpg: "pretend-openpgp-envelope"u8.ToArray());
+        var bundle = OutputBundleBuilder.Build(shareZips, armoredEnvelope, verificationRecord);
 
         using var ms = new MemoryStream(bundle);
         using var archive = new ZipArchive(ms, ZipArchiveMode.Read);
@@ -32,17 +30,38 @@ public class OutputBundleBuilderTests
             "MANUAL-RECOVERY.txt",
             "payload/IMPORTANT-READ-FIRST.txt",
             "payload/VERIFY-THIS-BACKUP.txt",
-            "payload/payload.age",
-            "payload/payload.age.gpg",
-            "payload/payload.age.txt",
+            "payload/payload.age.gpg.asc",
             "shares/share-1-of-3.zip",
             "shares/share-2-of-3.zip",
             "shares/share-3-of-3.zip",
             "verification-record.txt",
         ]);
 
-        using var armorReader = new StreamReader(archive.GetEntry("payload/payload.age.txt")!.Open());
-        armorReader.ReadToEnd().Should().Be(armored);
+        using var reader = new StreamReader(
+            archive.GetEntry($"payload/{OutputBundleBuilder.PayloadFileName}")!.Open());
+        reader.ReadToEnd().Should().Be(armoredEnvelope);
+    }
+
+    // The unwrapped forms nullified the wrapper: anyone holding the folder could take
+    // payload.age and break one format instead of two. Their absence IS the property,
+    // so it is asserted rather than left to whoever edits the builder next.
+    [Fact]
+    public void Build_ShipsExactlyOneCiphertextAndNothingUnwrapped()
+    {
+        var bundle = OutputBundleBuilder.Build(
+            [("share-1-of-1.zip", ShareZipWriter.Write(ShareFolder.Build("readme", "mnemonic")))],
+            "-----BEGIN PGP MESSAGE-----\n\npretend\n=abcd\n-----END PGP MESSAGE-----\n",
+            "record\n");
+
+        using var ms = new MemoryStream(bundle);
+        using var archive = new ZipArchive(ms, ZipArchiveMode.Read);
+        var names = archive.Entries.Select(e => e.FullName).ToList();
+
+        names.Should().NotContain("payload/payload.age");
+        names.Should().NotContain("payload/payload.age.txt");
+        names.Should().NotContain("payload/payload.age.gpg");
+        names.Where(n => n.StartsWith("payload/payload", StringComparison.Ordinal))
+            .Should().ContainSingle("exactly one ciphertext, so nobody has to choose");
     }
 
     [Fact]

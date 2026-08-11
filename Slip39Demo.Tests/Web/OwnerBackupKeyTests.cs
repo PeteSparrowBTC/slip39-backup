@@ -4,6 +4,8 @@ using CSharpFunctionalExtensions;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Slip39Demo.Core.Age;
+using Slip39Demo.Core.Bundle;
+using Slip39Demo.Core.Pgp;
 using Slip39Demo.Core.Slip39;
 using Slip39Demo.UI.Pages;
 using Slip39Demo.UI.Services;
@@ -152,8 +154,18 @@ public class OwnerBackupKeyTests : TestContext
             cut.Markup.Should().Contain("Entered by you");
         }, timeout: TimeSpan.FromSeconds(10));
 
-        var payloadAge = ReadBundleEntry(downloader.Calls[0].Bytes, "payload/payload.age");
-        var decrypted = AgePassphrase.Decrypt(payloadAge, Convert.FromHexString(DiceKeyHex));
+        // Reads the artifact that actually ships, the armored OpenPGP envelope, and
+        // takes both locks off with the entered key. Stronger than reading a bare
+        // payload.age, which the bundle no longer contains: this proves the key is
+        // right for the file the owner holds, rather than for an intermediate that
+        // never leaves the process.
+        var shipped = ReadBundleEntry(
+            downloader.Calls[0].Bytes, $"payload/{OutputBundleBuilder.PayloadFileName}");
+
+        var unwrapped = PgpEnvelope.Decrypt(shipped, Convert.FromHexString(DiceKeyHex));
+        unwrapped.IsSuccess.Should().BeTrue(unwrapped.IsFailure ? unwrapped.Error : "");
+
+        var decrypted = AgePassphrase.Decrypt(unwrapped.Value, Convert.FromHexString(DiceKeyHex));
 
         decrypted.IsSuccess.Should().BeTrue(decrypted.IsFailure ? decrypted.Error : "");
         System.Text.Encoding.UTF8.GetString(decrypted.Value).Should().Contain("schema_version");
