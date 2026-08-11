@@ -38,12 +38,19 @@ public class VerifyGuideTests
         VerifyGuide.Text.Should().Contain(fragment, why);
 
     [Theory]
-    [InlineData("age -d payload.age", "decrypting the binary blob")]
-    [InlineData("age -d payload.age.txt", "decrypting the armored copy")]
-    [InlineData("sha256sum payload.age", "checking the blob against the verification record")]
+    [InlineData("gpg -d payload.age.gpg.asc", "taking off the outer OpenPGP lock")]
+    [InlineData("age -d payload.age", "taking off the inner age lock with the same key")]
+    [InlineData("sha256sum payload.age.gpg.asc", "checking the shipped file against the record")]
     [InlineData("shamir recover", "rebuilding the key from shares")]
     public void Guide_GivesTheActualCommands(string fragment, string why) =>
         VerifyGuide.Text.Should().Contain(fragment, why);
+
+    // One artifact means there is no second encoding to diff against, so what the
+    // guide has to convey instead is that the two locks are opened by two unrelated
+    // programs. That agreement is what the exercise proves.
+    [Fact]
+    public void Guide_ShowsBothLocksOpenedByDifferentPrograms() =>
+        VerifyGuide.Text.Should().Contain("written by different");
 
     // A reader who sees a different checksum on a second, independently produced
     // blob must not conclude something is broken. age is randomised, so two

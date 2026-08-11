@@ -17,7 +17,7 @@ namespace Slip39Demo.Core.Bundle;
 // that is valuable once combined with threshold-1 others.
 //
 // It contains NO secret data — the secret is in share.slip39 (the mnemonic) and
-// in payload.age (the encrypted blob).
+// in payload.age.gpg.asc (the encrypted blob, two locks deep).
 //
 // Plain text — no Markdown — so it stays readable in any editor, printed on
 // paper, or pasted into a password-manager note.
@@ -73,7 +73,7 @@ public static class ReadmeTemplate
         sb.AppendLine("  - Enough of these SLIP-39 shares to meet the backup's threshold.");
         sb.AppendLine("    A SLIP-39 tool reads the required number from the shares");
         sb.AppendLine("    themselves and tells you when you have enough.");
-        sb.AppendLine("  - The separate encrypted file `payload.age`, obtained from the");
+        sb.AppendLine("  - The separate encrypted file `payload.age.gpg.asc`, from the");
         sb.AppendLine("    owner's password manager OR their offline backups.");
         sb.AppendLine("  - A clean machine running Tails, disconnected from every");
         sb.AppendLine("    network. Required, not preferred: recovery shows the seed");
@@ -84,7 +84,10 @@ public static class ReadmeTemplate
         sb.AppendLine("Steps:");
         sb.AppendLine("  1. Combine threshold-many shares with a SLIP-39 tool to recover");
         sb.AppendLine("     a 32-byte key.");
-        sb.AppendLine("  2. Use that key to decrypt `payload.age` with an age tool.");
+        sb.AppendLine("  2. Use that key to unlock `payload.age.gpg.asc`. It has two");
+        sb.AppendLine("     locks, so this is two commands with the SAME key: `gpg -d`");
+        sb.AppendLine("     first, then `age -d` on the result. MANUAL-RECOVERY.txt");
+        sb.AppendLine("     spells both out, including where to get the programs.");
         sb.AppendLine("  3. The decrypted file holds the wallet's seed words, optional");
         sb.AppendLine("     passphrase, derivation path, and label.");
         sb.AppendLine();

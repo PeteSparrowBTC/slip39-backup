@@ -34,11 +34,11 @@ WHAT YOU NEED
     share is one line of words in a file named share.slip39.
     (A SLIP-39 tool will tell you how many you need — it is
     encoded in the shares themselves.)
- 2. The encrypted payload file. It may be called payload.age
-    (binary), payload.age.txt (the same thing as text), or
-    payload.age.gpg (the same thing with one extra lock, see
-    Step 2). Any one of them is enough. It was kept by the
-    owner — password manager, safe, or with their executor.
+ 2. The encrypted payload file, called payload.age.gpg.asc. It
+    was kept by the owner: password manager, safe, or with their
+    executor. Older backups may hold payload.age or
+    payload.age.txt instead, which is the same secret with one
+    lock rather than two; Step 2 covers both.
  3. An OFFLINE computer running Tails (tails.net) from a USB
     stick. Boot it and do NOT connect to the internet. This is
     mandatory, not a preference: recovery puts your seed words
@@ -133,33 +133,34 @@ them — both tools above are verified to work with these shares.
 
 STEP 2 — DECRYPT THE PAYLOAD WITH THAT KEY
 ----------------------------------------------------------------
-FIRST, if what you have is called payload.age.gpg rather than
-payload.age: that is the same file with one extra lock around
-it. Take that lock off first. GnuPG is already installed on
-Tails, so there is nothing to download:
+The file has TWO locks, one inside the other, and the same key
+opens both. So this is two commands, not one.
 
-    gpg -d payload.age.gpg > payload.age
+FIRST LOCK, with GnuPG. It is already installed on Tails, so
+there is nothing to download. In the terminal, in the folder
+holding your payload file:
 
-It will ask for a passphrase. Type the SAME 64-character hex
-string from Step 1. You now have payload.age; carry on below.
+    gpg -d payload.age.gpg.asc > payload.age
 
-(A backup normally contains both forms. If you already have a
-plain payload.age, skip this. The extra lock is there so that a
-future weakness in one of the two encryption formats still
-leaves the other one standing.)
+It will ask for a passphrase. Type (or paste) the 64-character
+hex string from Step 1, lowercase, no spaces. Nothing appears
+while you type a passphrase; that is normal. Press Enter.
 
-In the terminal, in the folder holding payload.age and the
-unpacked age program:
+You now have a file called payload.age. That is the inner file,
+still locked.
+
+SECOND LOCK, with age, the program unpacked in Part B:
 
     ./age/age -d payload.age > wallet.txt
 
-When age asks "Enter passphrase:", type (or paste) the
-64-character hex string from Step 1 — lowercase, no spaces. That
-hex string IS the passphrase. Nothing appears while you type a
-passphrase; that is normal. Press Enter.
+Same passphrase, the same 64-character hex string. That hex
+string IS the passphrase for both locks.
 
-The ASCII form works identically:
-    ./age/age -d payload.age.txt > wallet.txt
+Why two locks. A weakness found one day in one of the two
+encryption formats would still leave the other one standing.
+Older backups made by this tool held the inner file on its own,
+called payload.age or payload.age.txt; if that is what you have,
+skip the GnuPG command and start at the age command.
 
 Any other age implementation also works the same way, e.g. rage
 (https://github.com/str4d/rage — download rage-...-linux.tar.gz

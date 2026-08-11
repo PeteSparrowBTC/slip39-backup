@@ -13,11 +13,19 @@ public static class PayloadReadme
         "distributed to your share-holders.\n" +
         "\n" +
         "What is in this folder:\n" +
-        "  - payload.age          binary age-encrypted blob (the secret)\n" +
-        "  - payload.age.txt      same blob, ASCII-armored for paste into PMs\n" +
-        "  - payload.age.gpg      same blob with a second lock (OpenPGP AES-256)\n" +
-        "                         around it, in case age is ever broken. Any ONE\n" +
-        "                         of these three recovers the wallet.\n" +
+        "  - payload.age.gpg.asc  the secret. One file, plain text, safe to\n" +
+        "                         paste into a password manager or to print.\n" +
+        "\n" +
+        "  It has two locks, one inside the other: age on the inside, OpenPGP\n" +
+        "  (AES-256) on the outside. Both open with the same key, and your\n" +
+        "  SLIP-39 shares rebuild that key. Two locks means a future weakness\n" +
+        "  in one of the two formats still leaves the other standing.\n" +
+        "\n" +
+        "  Earlier versions also shipped payload.age and payload.age.txt, the\n" +
+        "  inner file on its own. Those are gone deliberately: keeping them\n" +
+        "  beside this file let anyone who found the folder open the weaker one\n" +
+        "  and ignore the outer lock entirely.\n" +
+        "\n" +
         "  - VERIFY-THIS-BACKUP.txt   how to prove this blob decrypts using\n" +
         "                         other people's tools, not this one\n" +
         "\n" +

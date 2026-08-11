@@ -43,7 +43,7 @@ WHAT YOU NEED
 ----------------------------------------------------------------
  1. Threshold-many share mnemonics from this backup (if it is a
     3-of-5, any 3 of the share zips).
- 2. payload.age and payload.age.txt from the payload/ folder.
+ 2. payload.age.gpg.asc from the payload/ folder.
  3. verification-record.txt from the bundle root.
  4. A USB stick with the tools, prepared in PART A below.
 
@@ -156,10 +156,16 @@ B2. Rebuild the key from your shares:
     (If `shamir` is not found, try ~/.local/bin/shamir or
     python3 -m shamir_mnemonic.cli)
 
-B3. Decrypt the binary blob with it:
-        ./age/age -d payload.age > check.txt
-    At "Enter passphrase:" type the 64 hex characters from B2,
+B3. Take off the OUTER lock, with GnuPG, already on Tails:
+        gpg -d payload.age.gpg.asc > payload.age
+    At the passphrase prompt type the 64 hex characters from B2,
     lowercase, no spaces. Nothing appears as you type. Enter.
+
+    That leaves payload.age, the inner file, still locked. It is
+    a working file for this check only; delete it at the end.
+
+B4. Take off the INNER lock, with age, using the SAME key:
+        ./age/age -d payload.age > check.txt
 
         cat check.txt
 
@@ -170,15 +176,12 @@ B3. Decrypt the binary blob with it:
     stray character, anything that does not match means this
     backup restores a DIFFERENT wallet than you think.
 
-B4. Decrypt the armored copy too, and confirm it is identical:
-        ./age/age -d payload.age.txt > check2.txt
-        diff check.txt check2.txt && echo "ARMOR OK"
-    Silence from diff plus "ARMOR OK" means the text form you
-    paste into a password manager carries the same secret as the
-    binary. If they differ, do not distribute anything.
+    Two commands, two programs, written by different people,
+    neither of them us. That is the point of the exercise: your
+    backup opened without this tool.
 
 B5. Confirm the file has not been altered since it was made:
-        sha256sum payload.age
+        sha256sum payload.age.gpg.asc
     Compare with the "Payload integrity" line in
     verification-record.txt. Same value means the blob on your
     USB is the blob the tool produced.
