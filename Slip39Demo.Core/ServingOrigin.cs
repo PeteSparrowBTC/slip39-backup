@@ -71,10 +71,27 @@ public static class ServingOrigin
     }
 
     // Convenience for the callers that hold a string, which is what NavigationManager
-    // gives them. An unparseable base URI is treated as NOT local: this is a safety gate,
-    // and the direction to fail in is the cautious one.
+    // gives them. Anything that is not an absolute URI with a scheme is treated as NOT
+    // local: this is a safety gate, and the direction to fail in is the cautious one.
     public static bool IsLocal(string uri) =>
-        Uri.TryCreate(uri, UriKind.Absolute, out var parsed) && IsLocal(parsed);
+        HasScheme(uri) && Uri.TryCreate(uri, UriKind.Absolute, out var parsed) && IsLocal(parsed);
+
+    // The scheme is required explicitly rather than left to Uri.TryCreate, because
+    // TryCreate does not answer this the same way on every platform. On Unix a bare path
+    // IS an absolute path, so "/slip39-backup/" parses as an absolute file: URI and would
+    // reach the non-web-scheme branch above and read as LOCAL. On Windows the same string
+    // fails to parse and reads as remote. CI caught that disagreement between the two.
+    //
+    // A safety gate whose answer depends on the operating system of the machine that built
+    // it is not a gate, and the platform where it went permissive is the one the AppImage
+    // ships on.
+    static bool HasScheme(string uri)
+    {
+        var colon = uri.IndexOf(':');
+        return colon > 0
+            && char.IsAsciiLetter(uri[0])
+            && uri.Take(colon).All(c => char.IsAsciiLetterOrDigit(c) || c is '+' or '-' or '.');
+    }
 
     // What to put on screen: scheme and host together, with the port when there is one.
     //
