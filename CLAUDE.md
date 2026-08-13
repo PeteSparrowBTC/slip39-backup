@@ -145,7 +145,16 @@ Tested behaviour: a push targeting `main` exits 1 with instructions, a feature b
   path is not expected to trigger there.
 - The gpg interop tests skip the same way when GnuPG is absent.
 - Third-party binaries are never committed. They are fetched, pinned by version
-  AND checksum, and verified at build time.
+  AND checksum, and verified at build time (`age` and `appimagetool`, in
+  `packaging/appimage/build-appimage.sh`).
+- **The one committed third-party artifact is
+  `Slip39Demo.UI/wwwroot/js/independent-verify.min.js`**, because a browser cannot
+  fetch and verify a bundle on an airgapped machine. It is held to the same standard
+  by a different route: `appimage.yml` rebuilds it from `tools/independent-verify`
+  with `npm ci` and fails if a single byte differs, so the committed bytes are
+  derived from a pinned lockfile rather than trusted. Never hand-edit it, and never
+  update it with `npm install`: `package.json` carries caret ranges, so only
+  `npm ci` reproduces what CI will compare against.
 
 ## Writing style
 
