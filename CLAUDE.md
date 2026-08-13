@@ -73,7 +73,7 @@ itself, which is the part worth reading before adding a field to the payload.
 
 | mechanism | what it actually does |
 | --- | --- |
-| GitHub branch protection on `main` | **The real enforcement.** Server-side, survives a reclone, applies to every client and to the web UI. Requires setup once per repo (below). |
+| The `main` **ruleset** on GitHub | **The real enforcement.** Server-side, survives a reclone, applies to every client and to the web UI. Already in place here (below), and it is a ruleset rather than legacy branch protection, which changes how you check it. |
 | `.githooks/pre-push` | **Blocks locally**, so a mistake fails before the network round-trip and prints the way out. Opt in per clone: `git config core.hooksPath .githooks`. Bypassable with `--no-verify`, by design. |
 | `.claude/settings.json` deny rules | Stops an agent from issuing the common main-targeting push and merge commands, plus the `gh api` verbs that could remove the protection itself. Matching is prefix-based and cannot cover every spelling, so it is a backstop for judgement, not a replacement. |
 
@@ -84,44 +84,43 @@ merge, because `github.event.pull_request` is always null on a push event. A per
 check is worse than no check. This repository is public, so real server-side enforcement is
 available and is used instead.
 
-### Setup: enable branch protection (once per repo)
+### How `main` is actually protected, and how to check it
 
-Requires admin on the repo. Because this repository is public, branch protection is
-available on the free plan (private repos would need GitHub Pro or Team).
-
-```bash
-gh api -X PUT repos/PeteSparrowBTC/slip39-backup/branches/main/protection --input - <<'JSON'
-{
-  "required_status_checks": null,
-  "enforce_admins": true,
-  "required_pull_request_reviews": {
-    "required_approving_review_count": 0,
-    "dismiss_stale_reviews": false,
-    "require_code_owner_reviews": false
-  },
-  "restrictions": null,
-  "allow_force_pushes": false,
-  "allow_deletions": false
-}
-JSON
-```
-
-Why `required_approving_review_count` is 0: a pull request is still required, but a solo
-maintainer can merge their own. GitHub does not allow self-approval, so any value above 0
-would make every PR unmergeable until a second person exists. Raise it when there is one.
-
-`enforce_admins: true` is what stops the repo owner from pushing to main directly. It does
-not prevent merging a PR.
-
-Verify:
+**It is a ruleset, not legacy branch protection, and that distinction has already
+produced one wrong answer.** The two features are separate systems with separate
+APIs, and the legacy endpoint knows nothing about rulesets:
 
 ```bash
-gh api repos/PeteSparrowBTC/slip39-backup/branches/main/protection \
-  --jq '{pr_required: (.required_pull_request_reviews != null), admins_included: .enforce_admins.enabled}'
+# Reports "Branch not protected" (HTTP 404) on this repository, which IS protected.
+gh api repos/PeteSparrowBTC/slip39-backup/branches/main/protection
 ```
 
-Equivalent UI path: Settings, Branches, Add branch ruleset, target `main`, tick "Require a
-pull request before merging" and "Do not allow bypassing the above settings".
+A review ran that command, took the 404 at face value, and was about to report the
+repository as wide open. Check the ruleset instead:
+
+```bash
+gh api repos/PeteSparrowBTC/slip39-backup/rulesets \
+  --jq '.[] | {name, enforcement}'
+# main / active
+
+# The rules themselves, and who may bypass them. An empty bypass list is the
+# ruleset equivalent of enforce_admins: nobody, including the owner, gets round it.
+gh api repos/PeteSparrowBTC/slip39-backup/rulesets/12211639 \
+  --jq '{rules: [.rules[].type], bypass: [.bypass_actors[]?.actor_type]}'
+# rules: ["deletion", "non_fast_forward", "pull_request"], bypass: []
+```
+
+Those three rules are what matter: a pull request is required, `main` cannot be
+deleted, and it cannot be force-pushed. No approving review is required, because
+GitHub does not allow self-approval and requiring one would make every pull
+request unmergeable until a second maintainer exists.
+
+Setting one up on a repository that has none is easiest in the UI: Settings, Rules,
+Rulesets, New branch ruleset, target the default branch, tick "Restrict deletions",
+"Block force pushes" and "Require a pull request before merging", and leave the
+bypass list empty. Do not add legacy branch protection alongside a ruleset; two
+overlapping mechanisms make it unclear which one is refusing a push. dice-to-seed
+currently has both, which is how the legacy command above appears to work there.
 
 ### Enable the local hook after cloning
 

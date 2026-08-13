@@ -1,7 +1,9 @@
 # Replacing the Photino shell with Tauri, and adopting the dice-to-seed styling
 
 Date: 2026-08-09
-Status: approved, not yet implemented
+Status: IMPLEMENTED and shipped in v2.0.0. `Slip39Demo.Desktop` is deleted,
+`src-tauri` is the shell, and `Slip39Demo.UI/wwwroot/css/app.css` replaced
+Bootstrap. Kept as the record of why, not as a plan.
 Supersedes the shell half of [2026-08-01-native-window-appimage-design.md](2026-08-01-native-window-appimage-design.md)
 
 ## Why

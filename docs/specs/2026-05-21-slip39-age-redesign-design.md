@@ -1,9 +1,30 @@
 # SLIP-39 + age Redesign — Design Document
 
 **Date:** 2026-05-21
-**Status:** Draft for review
-**Repo:** Seed-Phrase-Storage-SLIP39
+**Status:** HISTORICAL. Implemented, then partly superseded. Do not follow the
+storage guidance in this document.
+**Repo:** slip39-backup (named Seed-Phrase-Storage-SLIP39 at the time)
 **Branch:** `design-slip39-age-redesign`
+
+> **Read this before acting on anything below.** This is the original design
+> record, kept for its reasoning rather than as instruction. Two parts of it are
+> now wrong:
+>
+> - **The artifact.** This document describes a single `payload.age` and tells the
+>   owner to put it in a password manager, on a USB and in a safe. The bundle now
+>   ships exactly one ciphertext, `payload.age.gpg.asc`, which is that age file
+>   inside an OpenPGP AES-256 envelope. Shipping the unwrapped form beside it was
+>   reversed as incoherent: it handed anyone who obtained the folder the weaker
+>   file. See decision 2 in
+>   [the decision record](../decisions/2026-08-09-envelope-entropy-and-implementations.md).
+> - **The delivery.** The Kestrel host and Tor Browser flow here was replaced by a
+>   native window and then by a Tauri shell. See
+>   [2026-08-01](2026-08-01-native-window-appimage-design.md) and
+>   [2026-08-09](2026-08-09-tauri-shell-and-styling-design.md).
+>
+> The SLIP-39 group and threshold model, the payload schema and the threat model
+> still hold. Where this document and the decision record disagree, the decision
+> record wins.
 
 ---
 

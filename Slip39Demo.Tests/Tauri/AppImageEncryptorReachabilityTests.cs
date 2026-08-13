@@ -17,10 +17,10 @@ namespace Slip39Demo.Tests.Tauri;
 // second IPayloadEncryptor and wires it up; a test that read the registration list would
 // have to be updated by the very edit it exists to catch, which defeats the point.
 //
-// Deliberately does not name TauriAgeEncryptor, which does not exist until a later task.
-// "Declared in Slip39Demo.Tauri" is the invariant, and it holds for the current
-// NotWiredYet placeholder in Program.cs (internal, and still counted: GetTypes()
-// includes non-public types) exactly as it will for whatever replaces it.
+// Deliberately does not name TauriAgeEncryptor, which is what satisfies the invariant
+// today. "Declared in Slip39Demo.Tauri" is the property; naming the current implementation
+// would make the test pass for the wrong reason the moment it is replaced. Non-public types
+// count too, because GetTypes() returns them.
 public class AppImageEncryptorReachabilityTests
 {
     // The transitive closure of this repository's own assemblies, starting from the

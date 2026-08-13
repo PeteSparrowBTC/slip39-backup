@@ -3,7 +3,8 @@ using System.Text;
 
 namespace Slip39Demo.Core.Bundle;
 
-// Composes the final output.zip that Owner mode hands to the user. Tree:
+// Composes the bundle Owner mode hands to the user, named
+// slip39-wallet-backup-<label>-<date>.zip by Owner.BuildBundleFileName. Tree:
 //   shares/<name>.zip          one entry per share, content from ShareZipWriter
 //   payload/payload.age.gpg.asc        the ONLY ciphertext: the age file inside an
 //                                      OpenPGP AES-256 envelope, ASCII armored
@@ -39,11 +40,11 @@ public static class OutputBundleBuilder
             //
             // Shipping the unwrapped forms beside the wrapped one destroyed the reason
             // the wrapper exists. Its claim is that an attacker must break BOTH age and
-            // OpenPGP; an attacker holding this folder simply takes payload.age and
-            // breaks one. The storage guidance made that certain rather than possible,
-            // since it told the owner to put payload.age in the password manager, on the
-            // USB and in the safe. The justification was availability, which is real, and
-            // it was bought with the whole of the confidentiality argument.
+            // OpenPGP; an attacker holding this folder took the older unwrapped file and
+            // broke one. The storage guidance made that certain rather than possible,
+            // since it sent that same earlier file to the password manager, the USB and
+            // the safe. The justification was availability, which is real, and it was
+            // bought with the whole of the confidentiality argument.
             AddEntry(archive, $"payload/{PayloadFileName}", Encoding.UTF8.GetBytes(payloadArmoredText));
             AddEntry(archive, "payload/IMPORTANT-READ-FIRST.txt", Encoding.UTF8.GetBytes(PayloadReadme.Text));
             // Sits next to the blob it tells the owner to verify, so whoever opens
