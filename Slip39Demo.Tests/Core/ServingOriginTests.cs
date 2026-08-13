@@ -53,14 +53,25 @@ public class ServingOriginTests
         ServingOrigin.IsLocal(uri).Should().BeFalse(
             $"{uri} is an ordinary internet host that a substring test would pass");
 
-    // A safety gate fails towards the warning. An unparseable base URI is a situation
-    // nobody designed, and the wrong response to it is a green tick.
+    // A safety gate fails towards the warning. A base URI nobody designed for is not a
+    // reason to show a green tick.
+    //
+    // The third case is here because it is where this first went wrong, and it went wrong
+    // in the permissive direction on the platform that matters. Left to Uri.TryCreate,
+    // "/slip39-backup/" is an absolute file: URI on Unix (a bare path IS absolute there),
+    // which reached the non-web-scheme branch and answered LOCAL, while the same string
+    // failed to parse on Windows and answered remote. The tests passed locally and CI
+    // failed. A safety gate whose answer depends on the build machine's operating system is
+    // not a gate, so a scheme is now required explicitly.
     [Theory]
     [InlineData("")]
     [InlineData("not a uri")]
     [InlineData("/slip39-backup/")]
-    public void An_unparseable_origin_is_treated_as_remote(string uri) =>
-        ServingOrigin.IsLocal(uri).Should().BeFalse("an unknown origin must not read as safe");
+    [InlineData("//petesparrowbtc.github.io/slip39-backup/")]
+    [InlineData("localhost")]
+    public void An_origin_without_a_scheme_is_treated_as_remote(string uri) =>
+        ServingOrigin.IsLocal(uri).Should().BeFalse(
+            "an origin this code cannot read must not read as safe, on any platform");
 
     // Describe puts the scheme in deliberately: without it a reader cannot tell an
     // ordinary local server from the AppImage's in-process handler.
