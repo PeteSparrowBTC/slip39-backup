@@ -93,6 +93,56 @@ jobs:
           echo "value=$VERSION" >> "$GITHUB_OUTPUT"
           echo "appimage=slip39-backup-${VERSION}-x86_64.AppImage" >> "$GITHUB_OUTPUT"
 
+      # Rebuild the vendored verifier bundle and require it to match, byte for byte.
+      #
+      # WHY THIS GATES THE RELEASE
+      # Slip39Demo.UI/wwwroot/js/independent-verify.min.js is 190 KB of minified
+      # third-party code (slip39-js, typage, noble-hashes) committed to this repository,
+      # and it is what decides whether a freshly generated backup is handed to the user.
+      # Everything else third-party here is fetched at build time and pinned by version
+      # AND checksum: see the age tarball and appimagetool in
+      # packaging/appimage/build-appimage.sh. This file was the exception. Nobody reads a
+      # minified diff, both workflows exclude it from the external-origin scan, and
+      # nothing tied the committed bytes to the sources in tools/independent-verify.
+      #
+      # So the bytes are derived rather than trusted. npm ci installs the exact versions
+      # in package-lock.json (esbuild 0.25.12 as of writing), the bundle is rebuilt from
+      # src.mjs, and git diff must report nothing. Confirmed reproducible before this step
+      # was added: a rebuild produced sha256
+      # 718013abd2e06d4cd58b6a7139d3a48beaaa6f31ad6390f37ab3c997f4b79df1, identical to the
+      # committed file.
+      #
+      # A failure here means one of three things and the fix differs:
+      #   - the bundle was edited by hand, which it must never be
+      #   - the sources changed and the bundle was not rebuilt: run
+      #     `npm ci && npm run build` in tools/independent-verify and commit the result
+      #   - a dependency resolved differently, which is a supply-chain event to read the
+      #     diff for rather than to commit over
+      #
+      # Use `npm ci`, never `npm install`, when updating it. package.json carries caret
+      # ranges for two dependencies, so npm install can pull a new minor and produce a
+      # bundle nobody asked for.
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Rebuild the independent verifier bundle and require it to match
+        run: |
+          set -euo pipefail
+          BUNDLE="Slip39Demo.UI/wwwroot/js/independent-verify.min.js"
+          echo "committed: $(sha256sum "$BUNDLE" | cut -d' ' -f1)"
+
+          ( cd tools/independent-verify && npm ci --no-audit --no-fund && npm run build )
+
+          echo "rebuilt:   $(sha256sum "$BUNDLE" | cut -d' ' -f1)"
+
+          if ! git diff --exit-code -- "$BUNDLE"; then
+            echo "::error::$BUNDLE is not what its pinned sources produce. The comment above this step in appimage.yml lists the three things this can mean."
+            exit 1
+          fi
+          echo "The committed verifier bundle is exactly what its pinned sources produce."
+
       # The suite gates the artifact, before anything is packaged. This AppImage is
       # what people run against real seed phrases on an airgapped machine.
       #
