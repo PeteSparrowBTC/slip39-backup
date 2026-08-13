@@ -87,3 +87,12 @@ src-tauri/target/
 # JSON schemas tauri-build regenerates from tauri.conf.json on every build, purely to
 # give editors autocomplete on capability files. Not consumed by anything checked in.
 src-tauri/gen/schemas/
+
+# JetBrains Rider / IntelliJ. Four of these were committed once; the solution-level
+# directory carries per-user layout and belongs to nobody but the machine it is on.
+.idea/
+
+# Scratch files used while diagnosing a dependency, kept out of the tree: they are
+# throwaway reproductions, not tests, and a reader cannot tell which by the extension.
+*.linq
+*.csx

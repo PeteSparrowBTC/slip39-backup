@@ -3,7 +3,7 @@ using System.IO.Compression;
 namespace Slip39Demo.Core.Bundle;
 
 // Writes a ShareFolder dictionary as a zip archive in memory. Determinism is
-// essential — verification-record SHA256s must be stable across rebuilds — so:
+// essential (verification-record SHA256s must be stable across rebuilds), so:
 //   - entries are written in ordinal-sorted name order
 //   - LastWriteTime is fixed to a constant (2020-01-01 UTC)
 //   - compression mode is NoCompression (zip "stored", no DEFLATE)

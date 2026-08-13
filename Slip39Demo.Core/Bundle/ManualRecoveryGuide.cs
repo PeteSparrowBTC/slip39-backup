@@ -2,15 +2,16 @@ namespace Slip39Demo.Core.Bundle;
 
 // The tool-independent recovery manual. Travels inside EVERY share zip (and the
 // bundle root): at recovery time the executor typically holds gathered share
-// zips + payload.age, not our app — this document lets them reconstruct the
-// wallet using only widely-available standard tools (any SLIP-39 implementation
-// + any age implementation), per the design's core durability pillar.
+// zips + payload.age.gpg.asc, not our app, so this document lets them rebuild
+// the wallet using only widely-available standard tools (any SLIP-39
+// implementation, GnuPG, and any age implementation), per the design's core
+// durability pillar.
 //
 // Every tool recommended here has been executed against a real backup produced
 // by this tool (2026-07-19): python-shamir-mnemonic and the revised
 // 3rditeration web page both recovered K byte-identically; typage decrypted
-// the payload. The original iancoleman page REJECTS our extendable shares —
-// the guide warns about it so good shares aren't misdiagnosed as corrupt.
+// the payload. The original iancoleman page REJECTS our extendable shares, so
+// the guide warns about it and good shares are not misdiagnosed as corrupt.
 //
 // Contains NO secret data. Plain text, printable, written for someone with
 // basic technical skills following steps under stress.
@@ -22,17 +23,18 @@ public static class ManualRecoveryGuide
 """
 RECOVERING THIS WALLET WITHOUT THE ORIGINAL TOOL
 ================================================================
-This backup uses two open standards — SLIP-39 (Shamir share
-mnemonics) and age v1 (file encryption). Nothing about it needs
-the tool that created it. Any SLIP-39 implementation plus any age
-implementation can rebuild the wallet. This document shows how,
-including how to install the tools.
+This backup uses three open standards: SLIP-39 (Shamir share
+mnemonics), OpenPGP (the outer lock) and age v1 (the inner one).
+Nothing about it needs the tool that created it. Any SLIP-39
+implementation, GnuPG, and any age implementation can rebuild the
+wallet. This document shows how, including how to install the
+tools.
 
 WHAT YOU NEED
 ----------------------------------------------------------------
  1. Enough share mnemonics to meet the backup's threshold. Each
     share is one line of words in a file named share.slip39.
-    (A SLIP-39 tool will tell you how many you need — it is
+    (A SLIP-39 tool will tell you how many you need: it is
     encoded in the shares themselves.)
  2. The encrypted payload file, called payload.age.gpg.asc. It
     was kept by the owner: password manager, safe, or with their
@@ -47,7 +49,7 @@ WHAT YOU NEED
  4. A second, ordinary USB stick carrying the tools, prepared
     below BEFORE going offline.
 
-PART A — DOWNLOAD THE TOOLS (online machine, no secrets here)
+PART A: DOWNLOAD THE TOOLS (online machine, no secrets here)
 ----------------------------------------------------------------
 Do this on any normal computer. Nothing secret is involved yet.
 
@@ -63,12 +65,12 @@ A2. SLIP-39 tool, browser (no command line needed):
     In the browser: Ctrl+S (Save Page As...) and choose
     "Webpage, Complete". Copy the saved .html file AND the folder
     saved next to it onto the USB stick.
-    (Do NOT use the older page at iancoleman.io/slip39 — see the
+    (Do NOT use the older page at iancoleman.io/slip39: see the
     warning at the end of Step 1.)
 
 A3. age, for decrypting the payload:
     NOTE: age is NOT preinstalled on Tails (Tails ships GnuPG,
-    not age), and installing software on Tails needs internet —
+    not age), and installing software on Tails needs internet,
     so bring the program on the USB stick instead.
     Visit the releases page:
         https://github.com/FiloSottile/age/releases
@@ -81,7 +83,7 @@ Now move to the offline machine with that USB stick. Never type
 seed material on a computer that is, or will be, connected to
 the internet.
 
-PART B — INSTALL ON THE OFFLINE MACHINE
+PART B: INSTALL ON THE OFFLINE MACHINE
 ----------------------------------------------------------------
 On Tails: open Applications > Utilities > Terminal. Plug in the
 USB stick and change into it (it mounts under /media/amnesia/).
@@ -101,7 +103,7 @@ B2. Unpack age (from A3):
     called `age`. Make sure it is runnable:
         chmod +x age/age
 
-STEP 1 — REBUILD THE MASTER KEY FROM THE SHARES
+STEP 1: REBUILD THE MASTER KEY FROM THE SHARES
 ----------------------------------------------------------------
 Command-line path (tool from B1):
  1. Run:
@@ -110,11 +112,11 @@ Command-line path (tool from B1):
     on one line, single spaces) and press Enter.
  3. It shows how many more shares are needed; repeat for each
     share until it says the secret was recovered. Use EXACTLY
-    threshold-many shares — do not enter extras (if you hold 5
+    threshold-many shares, and do not enter extras (if you hold 5
     shares of a 3-of-5 backup, enter any 3 and stop).
  4. It prints the recovered master secret: a 64-character
     hexadecimal string (digits 0-9 and letters a-f). This is the
-    KEY — not yet the wallet. Copy it exactly, all lowercase.
+    KEY, not yet the wallet. Copy it exactly, all lowercase.
 
 Browser path (page from A2, works fully offline):
  1. Open the saved .html file in the browser (double-click it).
@@ -129,9 +131,9 @@ WARNING about the well-known iancoleman.io/slip39 web page: as of
 2026 it does NOT understand modern "extendable" SLIP-39 shares
 (which this backup uses) and reports "Invalid mnemonic checksum".
 Do not conclude your shares are bad because that page rejects
-them — both tools above are verified to work with these shares.
+them: both tools above are verified to work with these shares.
 
-STEP 2 — DECRYPT THE PAYLOAD WITH THAT KEY
+STEP 2: DECRYPT THE PAYLOAD WITH THAT KEY
 ----------------------------------------------------------------
 The file has TWO locks, one inside the other, and the same key
 opens both. So this is two commands, not one.
@@ -163,18 +165,18 @@ called payload.age or payload.age.txt; if that is what you have,
 skip the GnuPG command and start at the age command.
 
 Any other age implementation also works the same way, e.g. rage
-(https://github.com/str4d/rage — download rage-...-linux.tar.gz
+(https://github.com/str4d/rage: download rage-...-linux.tar.gz
 from its releases page, unpack, then `./rage -d payload.age`).
 
-STEP 3 — READ THE WALLET
+STEP 3: READ THE WALLET
 ----------------------------------------------------------------
 Open wallet.txt (or run: cat wallet.txt). It is plain text:
     seed_words:       the BIP-39 seed phrase of the wallet
-    passphrase:       (if present) the BIP-39 passphrase — needed
+    passphrase:       (if present) the BIP-39 passphrase, needed
                       together with the seed words
     derivation_path:  where the accounts live (e.g. m/84'/0'/0')
-    xpub_fingerprint: 8 hex characters identifying the wallet —
-                      after restoring, your wallet software should
+    xpub_fingerprint: 8 hex characters identifying the wallet.
+                      After restoring, your wallet software should
                       show this same fingerprint. If it does not,
                       something is wrong: stop and re-check.
 Enter the seed words (and passphrase, if any) into a hardware
@@ -197,7 +199,7 @@ IF SOMETHING FAILS
 ----------------------------------------------------------------
  - "Invalid mnemonic checksum"  -> a word is wrong in one share.
    Re-read it carefully from the printed/typed copy. (Or you are
-   on the old iancoleman page — see the warning above.)
+   on the old iancoleman page: see the warning above.)
  - SLIP-39 tool wants more shares -> you are below the threshold;
    gather more.
  - age says the passphrase is wrong -> re-copy the hex from
@@ -211,6 +213,7 @@ IF SOMETHING FAILS
 SPECIFICATIONS (for reimplementation from scratch)
 ----------------------------------------------------------------
  SLIP-39:  https://github.com/satoshilabs/slips/blob/master/slip-0039.md
+ OpenPGP:  https://www.rfc-editor.org/rfc/rfc9580.html
  age v1:   https://age-encryption.org/v1
 ================================================================
 """;

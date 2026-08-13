@@ -1,18 +1,29 @@
 # Running slip39-backup on Tails
 
-The tool ships as a single AppImage that opens a **native window** — no
-browser, no local server, no Tor configuration. All cryptography runs locally;
-the window is rendered by WebKitGTK, which Tails ships out of the box.
+The tool ships as a single AppImage that opens a **native window**: no browser,
+no local server, no Tor configuration. All cryptography runs locally; the window
+is rendered by WebKitGTK, which Tails ships out of the box.
 
 The app has two pages you'll use:
-- **`/owner`**: create a backup. Outputs a single `output.zip` (share zips, `payload.age` in three forms: binary, ASCII-armored, and OpenPGP-wrapped, plus a verification record).
-- **`/recoverer`**: recover a wallet. Drop threshold-many share zips and any one of the three `payload.age` forms in, click Recover.
+- **`/owner`**: create a backup. Saves one zip named after the wallet and the
+  date, for example `slip39-wallet-backup-main-wallet-2026-08-13.zip`, holding
+  the share zips, the single ciphertext `payload/payload.age.gpg.asc`, a
+  verification record and the recovery documents.
+- **`/recoverer`**: recover a wallet. Drop in threshold-many share zips and
+  `payload.age.gpg.asc` (or paste its text), then click Recover. Older backups
+  may hold `payload.age` or `payload.age.txt` instead, and those still work.
+
+**The ciphertext has two locks, both opened by the same key.** age on the inside,
+OpenPGP AES-256 on the outside, and your shares rebuild the one key that opens
+both. One file ships rather than one per layer: an unwrapped copy sitting beside
+the wrapped one would let anyone who found the folder break the weaker of the two
+and ignore the other.
 
 ## Requirements
 
 - **Tails 7.0 or later** (Debian 13 base). Tails 6 and older are end-of-life
-  and unsupported — on them the app fails to start with a `GLIBC_2.38 not
-  found` error. Check your version: Applications → Tails → About Tails.
+  and unsupported: on them the app fails to start with a `GLIBC_2.38 not
+  found` error. Check your version under Applications, Tails, About Tails.
 - A USB drive with the AppImage (and its `.sha256`, if you downloaded it from GitHub
   Releases). The filename carries the version, for example
   `slip39-backup-2.0.0-x86_64.AppImage`. Substitute the version you downloaded in the
@@ -21,10 +32,9 @@ The app has two pages you'll use:
 
 ## Steps
 
-1. **Boot Tails.** For real backups, do **not** connect to a network — the
-   whole point is generating secrets on an airgapped machine. The tool detects
-   connectivity and watermarks anything generated while online as
-   INSECURE-TEST.
+1. **Boot Tails.** For real backups, do **not** connect to a network. The whole
+   point is generating secrets on an airgapped machine, and the tool detects
+   connectivity and watermarks anything generated while online as INSECURE-TEST.
 
 2. **Copy the AppImage** from the USB into the home folder (`/home/amnesia`).
    Running from the home folder avoids filesystem quirks of FAT-formatted
@@ -36,13 +46,13 @@ The app has two pages you'll use:
    sha256sum -c slip39-backup-2.0.0-x86_64.AppImage.sha256
    ```
 
-4. **Run it** (Files → right-click the folder → Open Terminal Here):
+4. **Run it** (in Files, right-click the folder and choose Open Terminal Here):
    ```bash
    chmod +x slip39-backup-2.0.0-x86_64.AppImage
    ./slip39-backup-2.0.0-x86_64.AppImage
    ```
    The app window opens directly. (Double-clicking in the Files app does
-   nothing — GNOME deliberately refuses to launch raw executables; the
+   nothing: GNOME deliberately refuses to launch raw executables, so the
    terminal is the supported path.)
 
 5. **Create your backup** in the Owner page. Save the output where you choose
@@ -58,11 +68,11 @@ The app has two pages you'll use:
 
 ## Troubleshooting
 
-- **`GLIBC_2.38 not found`** — your Tails is version 6 or older. Upgrade the
-  stick to Tails 7+ (a 6→7 jump needs a fresh install / Tails Cloner, not the
-  automatic upgrader).
-- **`Permission denied` when running** — the file is on a FAT-formatted stick
+- **`GLIBC_2.38 not found`**: your Tails is version 6 or older. Upgrade the
+  stick to Tails 7 or later (going from 6 to 7 needs a fresh install with Tails
+  Cloner, not the automatic upgrader).
+- **`Permission denied` when running**: the file is on a FAT-formatted stick
   where `chmod +x` silently does nothing. Copy it to the home folder first.
-- **Window doesn't open, webkit errors in terminal** — you're not on Tails
+- **Window doesn't open, webkit errors in terminal**: you're not on Tails
   (the AppImage deliberately relies on Tails's system WebKitGTK; other distros
   need `libwebkit2gtk-4.1` installed).

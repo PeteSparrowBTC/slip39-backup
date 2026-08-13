@@ -25,11 +25,11 @@ public class StylesheetContractTests
     static string AppCss() =>
         File.ReadAllText(Path.Combine(RepoRootPath(), "Slip39Demo.UI", "wwwroot", "css", "app.css"));
 
-    // The exact class vocabulary task-1-brief.md promises to every later task
-    // ("Produces", Interfaces section). A name listed there that app.css does not
-    // define is dead on arrival for whichever task consumes it: this is exactly how
-    // btn-ghost got into the first draft of the contract and out of review, because
-    // nothing checked the list against the stylesheet.
+    // The exact class vocabulary the restyle plan promised to every task that followed
+    // it, in docs/plans/2026-08-09-restyle-from-dice-to-seed.md. A name promised there
+    // that app.css does not define is dead on arrival for whichever page consumes it:
+    // that is how btn-ghost got into the first draft of the contract and through review,
+    // because nothing checked the list against the stylesheet.
     static readonly string[] ContractClasses =
     [
         "app", "panel", "panel-header", "panel-body", "banner", "banner-ok", "banner-warn",

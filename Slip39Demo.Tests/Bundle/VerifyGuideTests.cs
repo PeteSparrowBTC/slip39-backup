@@ -81,6 +81,45 @@ public class VerifyGuideTests
         VerifyGuide.Text.Should().Contain("rm check.txt");
     }
 
+    // Every file the cleanup line deletes must be one the procedure creates, and every
+    // file it creates and does not want kept must be in that line.
+    //
+    // It listed check2.txt, which no step has ever produced, while omitting payload.age,
+    // which B3 produces and the guide itself promises to delete. Both halves matter: the
+    // first hands the reader an error from rm on the closing step of a procedure whose
+    // entire purpose is to build confidence, and the second leaves the inner file, with
+    // one lock instead of two, sitting on the machine.
+    [Fact]
+    public void Guide_DeletesExactlyTheWorkingFilesItCreates()
+    {
+        var text = VerifyGuide.Text;
+        var lines = text.Split('\n');
+
+        var deleted = lines.Single(l => l.TrimStart().StartsWith("rm ", StringComparison.Ordinal))
+            .Trim()[3..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        // "> name" is the only way this document produces a file. Filtered to tokens that
+        // carry an extension, because ">" also appears in prose: the instruction to open
+        // Applications > Utilities > Terminal otherwise reads as creating two files.
+        var created = lines
+            .SelectMany(l => l.Split('>', StringSplitOptions.TrimEntries).Skip(1))
+            .Select(rest => rest.Split(' ')[0])
+            .Where(name => name.Contains('.', StringComparison.Ordinal))
+            .ToHashSet(StringComparer.Ordinal);
+
+        deleted.Should().NotBeEmpty();
+
+        // Set equality in both directions, which is the whole property: nothing deleted
+        // that was never created, and nothing created that is left behind.
+        //
+        // The optional second blob is not in either set and should not be: it is written
+        // with age's own -o flag rather than a redirect, and it is the one file this
+        // procedure deliberately keeps.
+        created.Should().BeEquivalentTo(deleted,
+            "every working file this procedure writes must be cleaned up, and the cleanup "
+            + "line must not name a file no step produces");
+    }
+
     // The passphrase whitespace trap: PayloadParser trims leading whitespace off
     // values, so a passphrase entered with a leading space recovers a different
     // wallet while every automated check still passes. Reading the decrypted

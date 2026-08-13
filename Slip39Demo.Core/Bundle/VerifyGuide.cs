@@ -26,9 +26,10 @@ The tool told you this backup was verified. It checked itself,
 with software it shipped. That catches a lot, but it cannot
 catch a tool that is wrong (or replaced) in the same way twice.
 
-This page shows how to prove your payload.age decrypts, using
-programs written by other people that know nothing about this
-tool. It takes about twenty minutes and you only do it once.
+This page shows how to prove your payload.age.gpg.asc opens,
+both locks, using programs written by other people that know
+nothing about this tool. It takes about twenty minutes and you
+only do it once.
 
 DO IT NOW, BEFORE you hand out any share and before you shut
 down. Right now the shares are all in front of you and a problem
@@ -139,7 +140,7 @@ PART B - CHECK IT (on the OFFLINE machine)
 ----------------------------------------------------------------
 Boot Tails, stay offline, plug in both USB sticks. Open
 Applications > Utilities > Terminal, and change into the folder
-holding payload.age.
+holding payload.age.gpg.asc.
 
 B1. Unpack the tools:
         tar -xzf age-v*-linux-amd64.tar.gz
@@ -197,10 +198,11 @@ B6. (Optional, from A3) Have a second, unrelated implementation
 WHAT THE RESULT MEANS
 ----------------------------------------------------------------
 Everything above passes:
-    Your payload.age is a valid age file, the standard tools can
-    open it, your shares really do produce its key, and the
-    contents are what you intended. This backup does not depend
-    on the tool that made it. That is the whole point.
+    Both locks on payload.age.gpg.asc came off with standard
+    tools, your shares really do produce the key that opens
+    them, and the contents are what you intended. This backup
+    does not depend on the tool that made it. That is the whole
+    point.
 
 age says "incorrect passphrase" or similar:
     The key from B2 is not the key the file was encrypted with.
@@ -223,7 +225,7 @@ KEEPING A SECOND COPY THAT THIS TOOL DID NOT WRITE
 ----------------------------------------------------------------
 Optional, and useful if you want protection against a defect in
 one implementation rather than in one file. With check.txt still
-present from B3:
+present from B4:
 
     ./age/age -p -o payload-by-age-cli.age check.txt
 
@@ -240,7 +242,13 @@ bug. Record its checksum separately if you want to track it.
 
 BEFORE YOU WALK AWAY
 ----------------------------------------------------------------
-    rm check.txt check2.txt check3.txt
+    rm check.txt check3.txt payload.age
+
+payload.age is the working file B3 left behind. It is still
+encrypted, so it is not a leak, but it is the inner file with one
+lock instead of two and there is no reason to keep it. check3.txt
+only exists if you did the optional B6; rm will say so and that
+is fine.
 
 Then shut the machine down. On Tails that wipes memory and
 leaves nothing behind. Anything you want to keep, including the

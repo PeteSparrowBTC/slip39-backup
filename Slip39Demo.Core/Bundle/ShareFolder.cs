@@ -10,8 +10,10 @@ namespace Slip39Demo.Core.Bundle;
 //                         QR app instead of retyping 33 words
 //   - MANUAL-RECOVERY.txt tool-independent recovery manual (install + usage)
 // The manual travels with EVERY share because at recovery time the executor
-// holds gathered share zips + payload.age — possibly not our tool or bundle.
-// No payload.age — that travels a completely separate path (per spec §5.1).
+// holds gathered share zips + payload.age.gpg.asc, possibly not our tool or
+// bundle. The ciphertext itself is NOT in here: it travels a completely
+// separate path, and a share folder that carried it would hand anyone who
+// obtained one share both halves of the secret.
 // The result is a read-only file map; the actual serialisation (folder on disk,
 // zip in memory) is the responsibility of downstream code.
 public static class ShareFolder

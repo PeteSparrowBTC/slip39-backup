@@ -28,7 +28,8 @@ A secure, offline-capable web application for backing up BIP-39 cryptocurrency w
 1. **SLIP-39 splits a random 32-byte key `k`** into threshold shares.
 2. **The wallet payload (seed words, optional BIP-39 passphrase, cosigner data, descriptor, notes) is encrypted with [age](https://age-encryption.org/) using `k`** as the recipient passphrase.
 
-The output is a single `output.zip` that you save to a USB drive. Recovery only requires threshold-many share zips plus the encrypted `payload.age.gpg.asc` blob.
+The output is a single zip, named after the wallet and the date
+(`slip39-wallet-backup-<label>-<date>.zip`), that you save to a USB drive. Recovery only requires threshold-many share zips plus the encrypted `payload.age.gpg.asc` blob.
 
 **Built with:** [Xecrets.Slip39](https://github.com/xecrets/xecrets-slip39) (SLIP-39 secret-sharing) and an in-tree age-passphrase implementation.
 
@@ -38,8 +39,8 @@ The output is a single `output.zip` that you save to a USB drive. Recovery only 
 
 This tool implements two roles that map directly to two routes in the app:
 
-- **Owner mode** (`/owner`) — you have the wallet seed and want to create a distributable backup.
-- **Recoverer mode** (`/recoverer`) — you (or your executor) have the shares and the encrypted payload and want to recover the wallet.
+- **Owner mode** (`/owner`): you have the wallet seed and want to create a distributable backup.
+- **Recoverer mode** (`/recoverer`): you (or your executor) have the shares and the encrypted payload and want to recover the wallet.
 
 Landing page (`/`) lets you pick between the two.
 
@@ -47,10 +48,10 @@ Landing page (`/`) lets you pick between the two.
 
 Traditional BIP-39 seed phrases have a problem: if someone finds your 12/24 words, they have complete access to your wallet. The SLIP-39 + age design here gives you:
 
-- **Threshold secret sharing** — split your wallet into multiple shares; only threshold-many can recover it.
-- **Standard cryptography end-to-end** — SLIP-39 for the share split, age for the payload encryption. No proprietary "concatenate seed and passphrase with padding" encoding.
-- **One file to distribute, one file to keep online** — the `output.zip` is laid out so share zips go to physical/offline storage and `payload.age.gpg.asc` goes to a password-manager entry with Emergency Access for your executor.
-- **Verifiable on recovery without exposing the seed** — a `verification-record.txt` lets you do periodic dry-run recovery checks against a stored fingerprint.
+- **Threshold secret sharing**: split your wallet into multiple shares; only threshold-many can recover it.
+- **Standard cryptography end-to-end**: SLIP-39 for the share split, age and OpenPGP for the payload encryption. No proprietary "concatenate seed and passphrase with padding" encoding.
+- **One file to distribute, one file to keep online**: the backup zip is laid out so share zips go to physical/offline storage and `payload.age.gpg.asc` goes to a password-manager entry with Emergency Access for your executor.
+- **Verifiable on recovery without exposing the seed**: a `verification-record.txt` lets you do periodic dry-run recovery checks against a stored fingerprint.
 
 ## How this compares to other tools
 
@@ -103,18 +104,26 @@ because they have not been examined closely enough to describe fairly.
 ### Two-layer encryption
 
 ```
-   Wallet payload (JSON: seed words, passphrase, cosigners, descriptor, notes)
+   Wallet payload (seed words, passphrase, cosigners, descriptor, notes)
                               │
-                              │  encrypted with age (passphrase = k)
+                              │  1. age encrypt, passphrase = k
                               ▼
-                    payload.age.gpg.asc
+                     payload.age  (inner file, never shipped)
+                              │
+                              │  2. OpenPGP AES-256 encrypt, same passphrase k
+                              ▼
+                    payload.age.gpg.asc  (the one file that ships)
                               ▲
                               │  k is the only thing SLIP-39 protects
                               │
    Random 32-byte key k ──► SLIP-39 split ──► share-1.zip … share-N.zip
 ```
 
-No part of the wallet seed leaves the age-encrypted payload. SLIP-39 only protects `k`. There is **no** SLIP-39 passphrase to remember — the security boundary is the threshold of share zips plus possession of the `payload.age.gpg.asc` file.
+Both locks take the same `k`, so recovery is `gpg -d` and then `age -d` with one
+key typed twice rather than a derivation an heir cannot perform by hand. What that
+hedges, and what it does not, is set out in the decision record.
+
+No part of the wallet seed leaves the encrypted payload. SLIP-39 only protects `k`. There is **no** SLIP-39 passphrase to remember. The security boundary is the threshold of share zips plus possession of the `payload.age.gpg.asc` file.
 
 ### Groups and thresholds
 
@@ -129,7 +138,7 @@ Default setup: **single group, 3-of-5**. You can change the threshold/count or a
 ### The app itself
 
 - **Two routes**: `/owner` for creating a backup, `/recoverer` for recovering one. `/` is the chooser.
-- **Single download**: Owner mode emits one `output.zip` (share zips + `payload.age.gpg.asc` + verification record + read-me).
+- **Single download**: Owner mode emits one zip (share zips + `payload.age.gpg.asc` + verification record + read-me).
 - **Drop-zone recovery**: Recoverer mode accepts share `.zip` files dropped directly, or pasted mnemonics one-per-line.
 - **Dark theme**: Easy on the eyes for extended use.
 - **100% client-side**: All crypto runs in WebAssembly, in a browser tab (demo) or the AppImage's own window. No network calls.
@@ -139,7 +148,7 @@ Default setup: **single group, 3-of-5**. You can change the threshold/count or a
 ✅ **No server processing**: The same Blazor WebAssembly runs in a browser tab for the demo, or in the AppImage's own native window with no server and no port bound
 ✅ **No data transmission**: Verifiable in browser DevTools (Network tab) for the demo
 ✅ **Offline capable**: Works completely offline on Tails Linux
-✅ **Standard primitives**: SLIP-39 for sharing, age for encryption — no custom encoding
+✅ **Standard primitives**: SLIP-39 for sharing, age and OpenPGP for encryption, no custom encoding
 ✅ **Tails-optimized**: RAM-only operation, everything wiped on shutdown
 
 ## Usage
@@ -171,7 +180,7 @@ This is a demonstration version. While all crypto runs client-side:
 
 ### Option 2: Offline on Tails Linux (Recommended)
 
-One file, one window — no browser, no server, no Tor configuration.
+One file, one window: no browser, no server, no Tor configuration.
 
 **Download from GitHub Releases:**
 1. Go to [Releases](https://github.com/PeteSparrowBTC/slip39-backup/releases)
@@ -227,14 +236,14 @@ bash packaging/appimage/build-appimage.sh src-tauri/target/release/slip39-backup
    - (Optional) Add a BIP-39 passphrase to a cosigner.
    - (Optional) Adjust derivation path, descriptor, group threshold, or group shape. Default is 3-of-5 single-group.
 3. Click **Generate**.
-4. Save the resulting `output.zip` (a browser download on the demo, the native save
+4. Save the resulting zip (a browser download on the demo, the native save
    dialog on the AppImage). It contains:
    - `shares/share-1-of-5.zip` ... `share-5-of-5.zip`: distribute to your storage locations (paper, metal, or trusted holders).
    - `payload/payload.age.gpg.asc`: the one ciphertext file. The age-encrypted payload wrapped a second time in OpenPGP AES-256 and ASCII armored, so it is plain text you can paste into a password-manager entry with Emergency Access for your executor, or print. Both locks open with the same key, which your shares rebuild.
    - `payload/VERIFY-THIS-BACKUP.txt` and `payload/IMPORTANT-READ-FIRST.txt`: owner-only notes about how to use and verify what's in the zip.
    - `verification-record.txt` and `MANUAL-RECOVERY.txt`: keep alongside the payload for periodic dry-run verification and tool-independent recovery.
 
-The `output.zip` itself is **not** something you store long-term: it's a one-shot distribution package. Split its contents to their respective homes immediately, then delete the zip.
+The backup zip itself is **not** something you store long-term: it's a one-shot distribution package. Split its contents to their respective homes immediately, then delete the zip.
 
 ### Recovering a wallet (Recoverer mode)
 
@@ -248,10 +257,10 @@ The recoverer never needs a SLIP-39 passphrase or any out-of-band secret: thresh
 
 ## Technical Details
 
-### File layout in `output.zip`
+### File layout in the backup zip
 
 ```
-output.zip
+slip39-wallet-backup-main-wallet-2026-08-13.zip
 ├── shares/
 │   ├── share-1-of-5.zip   (or {group}-share-1-of-N.zip when multi-group)
 │   ├── share-2-of-5.zip
@@ -265,18 +274,20 @@ output.zip
 └── MANUAL-RECOVERY.txt
 ```
 
-`payload.age.gpg.asc` is the one file needed to recover, alongside threshold-many shares. It has two locks and both open with the same key
-the wallet; the second and third forms are alternate encodings and an extra wrapper
-layer, not separate secrets. See
+`payload.age.gpg.asc` is the one file needed to recover, alongside
+threshold-many shares. It has two locks, age on the inside and OpenPGP AES-256
+outside it, and the key your shares rebuild opens both. Earlier versions shipped
+the unwrapped age file beside it, which handed anyone who obtained the folder the
+weaker of the two files and so cancelled the reason for wrapping at all. See
 [the design decision record](docs/decisions/2026-08-09-envelope-entropy-and-implementations.md)
-for why all three ship.
+for that reversal and its limits.
 
 Each individual `share-K-of-N.zip` contains the SLIP-39 mnemonic for that share plus a per-share README explaining what it is and how it's used.
 
 ### Dependencies
 
 - [Xecrets.Slip39](https://www.nuget.org/packages/Xecrets.Slip39/) - SLIP-39 implementation
-- In-tree age-passphrase encryption (scrypt + ChaCha20-Poly1305) — see `Slip39Demo.Core/Age/`
+- In-tree age-passphrase encryption (scrypt + ChaCha20-Poly1305), see `Slip39Demo.Core/Age/`
 - Blazor WebAssembly (.NET 8)
 
 ## Development
@@ -289,9 +300,9 @@ slip39-backup/
 ├── Slip39Demo.UI/               # Shared Blazor UI (pages, components, assets)
 │   └── Pages/
 │       ├── Index.razor          # Owner / Recoverer chooser
-│       ├── Owner.razor          # /owner — backup creation
-│       └── Recoverer.razor      # /recoverer — wallet recovery
-├── Slip39Demo.Web/              # WASM shell — hosted online demo only
+│       ├── Owner.razor          # /owner, backup creation
+│       └── Recoverer.razor      # /recoverer, wallet recovery
+├── Slip39Demo.Web/              # WASM shell, hosted online demo only
 ├── Slip39Demo.Tauri/            # Blazor WASM frontend the Tauri shell embeds
 ├── src-tauri/                   # Rust shell: window, save dialog, age subprocess
 ├── Slip39Demo.Tests/            # xUnit tests
@@ -333,12 +344,12 @@ This triggers:
 
 ✅ **Client-side only**: All operations run in WebAssembly, whether that is a browser tab (demo) or the AppImage's own webview
 ✅ **No external requests**: Zero network traffic (verify in DevTools, or in the AppImage's build-time check that it references no external origin)
-✅ **Your wallet is never written to disk**: the unencrypted seed and passphrase touch disk only if you choose to save the `output.zip`. The webview that renders the AppImage's window does create its own small local-data folder, the way any browser engine does; that folder holds no wallet data and is wiped along with the rest of a default Tails session
+✅ **Your wallet is never written to disk**: the unencrypted seed and passphrase touch disk only if you choose to save the backup zip. The webview that renders the AppImage's window does create its own small local-data folder, the way any browser engine does; that folder holds no wallet data and is wiped along with the rest of a default Tails session
 ✅ **Tails compatible**: Works on RAM-only OS with offline mode
 
 ### What You Must Do
 
-⚠️ **Split `output.zip` immediately** - Move share zips and `payload.age.gpg.asc` to their long-term homes, then delete `output.zip`.
+⚠️ **Split the backup zip immediately**: move share zips and `payload.age.gpg.asc` to their long-term homes, then delete the zip.
 ⚠️ **Store shares offline** - Paper, metal, or trusted holders. Never digital storage on internet-connected devices.
 ⚠️ **Distribute shares securely** - Never all in one place!
 ⚠️ **Test recovery** - Always do a dry-run recovery before relying on the backup.
@@ -349,7 +360,7 @@ This triggers:
 When using on Tails Linux:
 - Everything runs in RAM
 - Full system wipe on shutdown
-- The AppImage opens a native window (system WebKitGTK) — no browser, no
+- The AppImage opens a native window (system WebKitGTK): no browser, no
   local server, no open ports, nothing for another process to connect to
 
 ## FAQ
@@ -358,7 +369,7 @@ When using on Tails Linux:
 A: No. All cryptography runs in your browser via WebAssembly. Check browser DevTools Network tab to verify.
 
 **Q: Can I use this without internet?**
-A: Yes — that's the point. The AppImage is fully self-contained; run it on an airgapped Tails machine. No internet is required after the file is on the USB, and backups generated while online are watermarked INSECURE-TEST.
+A: Yes, that's the point. The AppImage is fully self-contained; run it on an airgapped Tails machine. No internet is required after the file is on the USB, and backups generated while online are watermarked INSECURE-TEST.
 
 **Q: Do I need to remember a SLIP-39 passphrase?**
 A: No. The new design has no SLIP-39 passphrase. The security boundary is "threshold-many shares **and** the `payload.age.gpg.asc` file". Anything inside it (including any BIP-39 passphrase you set on a cosigner) is recovered automatically once you have both.
@@ -367,7 +378,7 @@ A: No. The new design has no SLIP-39 passphrase. The security boundary is "thres
 A: As long as you have threshold-many shares and `payload.age.gpg.asc`, you can recover. With the default 3-of-5 single-group setup, losing up to 2 shares is fine.
 
 **Q: What if I lose `payload.age.gpg.asc`?**
-A: The shares alone are not enough — they only reveal the random key `k`, not the wallet payload. That's why `payload.age.gpg.asc` should be stored with redundancy (e.g. password-manager Emergency Access plus an offline copy).
+A: The shares alone are not enough: they only reveal the random key `k`, not the wallet payload. That's why `payload.age.gpg.asc` should be stored with redundancy (e.g. password-manager Emergency Access plus an offline copy).
 
 **Q: Is this better than just writing down my BIP-39 seed?**
 A: Yes, because:
