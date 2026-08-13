@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Bunit;
 using CSharpFunctionalExtensions;
 using FluentAssertions;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Slip39Demo.UI.Pages;
 using Slip39Demo.UI.Services;
@@ -455,6 +456,46 @@ public class OwnerFormValidationTests : TestContext
             cut.Markup.Should().Contain("INSECURE-TEST backup");
             cut.Markup.Should().Contain("Practice only");
         }, timeout: TimeSpan.FromSeconds(10));
+    }
+
+    // The third condition on a real backup, and the one the other two cannot substitute
+    // for. An offline machine running code a server sent, which the user cannot check
+    // against the repository, is not a safe place for a seed however many boxes are
+    // ticked. The probe says offline here and the user attests, which is exactly the
+    // combination that used to produce an unwatermarked backup on the hosted demo.
+    [Fact]
+    public void Generate_WhenServedOverTheNetwork_IsWatermarkedInsecureTest_EvenWhenOfflineAndAttested()
+    {
+        var downloader = new NoopDownloader();
+        Services.AddSingleton<IFileDownloader>(downloader);
+        Services.AddSingleton<NavigationManager>(new RemoteNavigation());
+
+        var cut = RenderComponent<Owner>();
+        cut.FindAll(TopLevelSeedSelector).First()
+            .Change("abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about");
+
+        // The provenance banner replaces the offline tick, so wait on the text this state
+        // actually renders rather than on "No internet reachable".
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("served to you by"),
+            timeout: TimeSpan.FromSeconds(10));
+        cut.Find("#airgap-attest").Change(true);
+
+        cut.Find("button.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            downloader.Calls.Should().ContainSingle(c => c.Filename.StartsWith("INSECURE-TEST-"));
+            // And the page says why ticking the box did not help, rather than leaving the
+            // reader to wonder what else they were supposed to do.
+            cut.Markup.Should().Contain("cannot make this copy safe");
+        }, timeout: TimeSpan.FromSeconds(10));
+    }
+
+    sealed class RemoteNavigation : NavigationManager
+    {
+        public RemoteNavigation() =>
+            Initialize("https://petesparrowbtc.github.io/slip39-backup/",
+                       "https://petesparrowbtc.github.io/slip39-backup/owner");
     }
 
     [Fact]

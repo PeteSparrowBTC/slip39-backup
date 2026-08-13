@@ -1,11 +1,36 @@
+@using Slip39Demo.Core
 @using Slip39Demo.UI.Services
+@inject NavigationManager Navigation
 @implements IDisposable
 
-@* The airgap indicator. Red + loud when the internet is reachable (the one
-   state that must never go unnoticed on a page that handles seeds), quiet
-   green when no internet is reachable, neutral while the first probe runs.
-   Re-checks every 10 seconds so pulling the cable flips it live. *@
-@if (isOnline is null)
+@* Two questions, asked separately, because they have different answers.
+
+   PROVENANCE, first and outranking everything else here: were these bytes served
+   to you by somebody else? If so, no amount of pulling cables makes this page
+   safe, because the code you are running is code you cannot check against the
+   repository. That state never shows a reassuring banner, whatever the probe
+   says. See Slip39Demo.Core/ServingOrigin.cs for why this beat the alternative.
+
+   CARRIER, second: is the internet reachable? The right question for the
+   AppImage, where it gates the INSECURE-TEST watermark. Red and loud when
+   reachable, quiet green when not, neutral while the first probe runs, and
+   re-checked every 10 seconds so pulling the cable flips it live. *@
+@if (!originIsLocal)
+{
+    <div class="banner banner-loud">
+        <strong>⚠ This page was served to you by @ServingOrigin.Describe(Navigation.BaseUri).</strong>
+        Do not enter a real seed. You cannot check from here that the files this
+        server sent are the ones in the repository, and disconnecting afterwards
+        does not change that: the code is already running.
+        @if (isOnline == true)
+        {
+            <text>This machine is also ONLINE.</text>
+        }
+        Everything generated here is marked <strong>INSECURE-TEST</strong>. For a
+        real backup, run the AppImage on an offline Tails session.
+    </div>
+}
+else if (isOnline is null)
 {
     <div class="banner">Checking network status…</div>
 }
@@ -34,6 +59,13 @@ else
 
     bool? isOnline;
     readonly CancellationTokenSource cts = new();
+
+    // Read once from the base URI rather than probed: where the app was served from cannot
+    // change while it runs, and the AppImage's own scheme is one of the local cases.
+    bool originIsLocal;
+
+    protected override void OnInitialized() =>
+        originIsLocal = ServingOrigin.IsLocal(Navigation.BaseUri);
 
     // First check after the first render (never during it — a raw Timer firing
     // pre-render breaks the renderer), then a PeriodicTimer loop so pulling the

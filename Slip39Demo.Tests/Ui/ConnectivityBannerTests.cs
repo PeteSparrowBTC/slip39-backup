@@ -1,5 +1,6 @@
 using Bunit;
 using FluentAssertions;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Slip39Demo.UI.Services;
 using Slip39Demo.UI.Shared;
@@ -18,9 +19,21 @@ public class ConnectivityBannerTests : TestContext
         public Task<bool> IsOnlineAsync() => Task.FromResult(online);
     }
 
-    IRenderedComponent<ConnectivityBanner> RenderMarkup(bool online)
+    // bUnit's own NavigationManager reports http://localhost/, a local origin, so every
+    // test that is not about provenance keeps exercising the carrier banners unchanged.
+    // This stands in for the hosted demo.
+    sealed class RemoteNavigation : NavigationManager
+    {
+        public RemoteNavigation() =>
+            Initialize("https://petesparrowbtc.github.io/slip39-backup/",
+                       "https://petesparrowbtc.github.io/slip39-backup/owner");
+    }
+
+    IRenderedComponent<ConnectivityBanner> RenderMarkup(bool online, bool servedRemotely = false)
     {
         Services.AddScoped<IConnectivityProbe>(_ => new StubProbe(online));
+        if (servedRemotely)
+            Services.AddSingleton<NavigationManager>(new RemoteNavigation());
         return RenderComponent<ConnectivityBanner>();
     }
 
@@ -72,6 +85,53 @@ public class ConnectivityBannerTests : TestContext
         {
             cut.Markup.Should().Contain("banner-ok");
             cut.Markup.Should().NotContain("banner-loud");
+        });
+    }
+
+    // The defect this whole mechanism exists for. On the hosted demo a visitor could pull
+    // the network cable, watch this component turn green and say "This machine is offline",
+    // and reasonably conclude it was now safe to type a real seed, while running
+    // WebAssembly a server sent them on their everyday computer. The reassuring state must
+    // not be reachable there at all: offline is necessary and not sufficient.
+    [Fact]
+    public void A_page_served_over_the_network_never_shows_the_reassuring_state()
+    {
+        var cut = RenderMarkup(online: false, servedRemotely: true);
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.Should().Contain("banner-loud");
+            cut.Markup.Should().NotContain("banner-ok");
+            cut.Markup.Should().NotContain("This machine is offline");
+        });
+    }
+
+    // Naming the origin rather than saying "somewhere": a reader can only judge the claim
+    // if they can see what served them, and it distinguishes the hosted demo from a local
+    // server they started themselves.
+    [Fact]
+    public void A_page_served_over_the_network_names_who_served_it()
+    {
+        var cut = RenderMarkup(online: false, servedRemotely: true);
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.Should().Contain("https://petesparrowbtc.github.io");
+            cut.Markup.Should().Contain("INSECURE-TEST");
+        });
+    }
+
+    // Both facts are true at once and both belong on screen, but provenance leads: no
+    // amount of disconnecting fixes code you cannot check, while the reverse is not true.
+    [Fact]
+    public void A_remote_page_that_is_also_online_says_both()
+    {
+        var cut = RenderMarkup(online: true, servedRemotely: true);
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Markup.Should().Contain("served to you by");
+            cut.Markup.Should().Contain("ONLINE");
         });
     }
 }

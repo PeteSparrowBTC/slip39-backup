@@ -1,6 +1,6 @@
 # Online detection: what this repository does, and what dice-to-seed does instead
 
-Status: reference, with one open recommendation at the end.
+Status: reference. The recommendation at the end was implemented on 2026-08-13.
 
 Authored by Pete Sparrow (human) and Claude (AI, Anthropic).
 
@@ -107,21 +107,39 @@ banner is telling the truth about connectivity and the wrong thing about safety.
 
 The static warning below it does say Tails is required. The dynamic green tick
 argues against it, and a green tick beats a paragraph.
+## Recommendation, implemented 2026-08-13
 
-## Recommendation, not yet implemented
+Adopted as the origin check **in addition to** the carrier check, not instead of it.
 
-Adopt the origin check **in addition to** the carrier check, not instead of it:
+- `ServingOrigin.IsLocal` is ported into `Slip39Demo.Core` with its tests, keeping
+  dice-to-seed's case analysis: a non-web scheme, the exact host `localhost`, any
+  loopback literal, and anything under `.localhost`. The AppImage lands in the
+  first or last of those, which is what stops the offline tool being warned at.
+- `ConnectivityBanner` shows the served-from warning when the origin is not local,
+  names the origin, and **suppresses the green tick entirely** in that state.
+  Offline is necessary and not sufficient there, so the reassuring state is not
+  reachable.
+- `Owner` treats a non-local origin as a third condition alongside the probe and
+  the attestation, so a hosted copy can only ever produce INSECURE-TEST backups.
+  The attestation checkbox stays usable and is told plainly that it changes
+  nothing here: disabling it would invite the reader to hunt for whatever would
+  enable it.
+- The carrier probe is unchanged as the watermark gate in the Tauri build, where
+  it is the right question.
 
-- Port `ServingOrigin.IsLocal` into `Slip39Demo.Core`, with the tests. It is
-  host-agnostic and belongs next to the other pure logic.
-- When the origin is not local, show the served-from warning and **suppress the
-  green offline tick entirely**. Offline is necessary and not sufficient there, so
-  a reassuring state should not be reachable.
-- Keep the carrier probe as the gate for the INSECURE-TEST watermark in the Tauri
-  build, where it is the right question.
-- Then the three third-party probe URLs can go, along with the allowlist exception
-  they force on `pages.yml`, since the hosted build would no longer need to ask
-  whether there is a network in order to know it is untrustworthy.
+### The one part not adopted, and why
 
-That is a behaviour change to a safety-relevant banner, so it belongs in its own
-pull request rather than riding along with this note.
+The recommendation ended by suggesting the three third-party probe URLs could then
+go, along with the allowlist exception they force on `pages.yml`, since a hosted
+build would no longer need to ask whether there is a network.
+
+That does not hold. The supported way to use this app from the web is to save the
+page and run it locally, offline, and a page saved from the hosted demo is a local
+origin when reopened. In that state the carrier question is live again and it is
+the only thing gating the watermark. Deleting the probe from the published bundle
+would remove the check from precisely the copy somebody is using for real.
+
+So the probe stays in `connectivity.js`, the three URLs stay in the `pages.yml`
+allowlist, and `appimage.yml` still allows **no** external origin at all, which is
+the difference that matters: the artifact that touches real seed phrases contacts
+nothing.

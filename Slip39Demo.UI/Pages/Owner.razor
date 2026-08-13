@@ -183,6 +183,22 @@
                         ends. This is required for a real backup, not advised.
                     </span>
                 </label>
+                @* An attestation about the network cannot answer a question about
+                   provenance, so on a hosted copy the checkbox is left usable (it
+                   still describes something the user knows) and told plainly that it
+                   changes nothing here. Disabling it would invite the reader to hunt
+                   for whatever would enable it. *@
+                @if (!originIsLocal)
+                {
+                    <p class="hint hint-loud">
+                        Ticking that box cannot make this copy safe. It was served by
+                        @ServingOrigin.Describe(Navigation.BaseUri), so the code running
+                        right now is code you cannot check against the repository, and
+                        every backup made here is watermarked INSECURE-TEST whatever you
+                        confirm. Download the AppImage and run it on an offline Tails
+                        session for a real one.
+                    </p>
+                }
 
                 @if (IsTestOnly)
                 {
@@ -351,6 +367,7 @@
     [Inject] IIndependentVerifier Verifier { get; set; } = null!;
     [Inject] IPayloadEncryptor Encryptor { get; set; } = null!;
     [Inject] IOuterLockVerifier OuterLock { get; set; } = null!;
+    [Inject] NavigationManager Navigation { get; set; } = null!;
 
     readonly OwnerFormModel model = new();
     bool isGenerating;
@@ -385,11 +402,21 @@
     bool? machineOnline;
     bool attested;
 
+    // The third condition, and the one the other two cannot substitute for: these bytes
+    // must not have been served by somebody else. An offline machine running code from a
+    // server the user cannot audit is not a safe place for a seed, however many boxes are
+    // ticked, and the attestation is about the network rather than about provenance. Read
+    // once, because where the app came from cannot change while it runs.
+    bool originIsLocal;
+
     // Held after a successful generate so the user can read what actually
     // happened. Contains no key material and no plaintext by construction.
     EncryptionTranscript? transcript;
     bool showTranscript;
-    bool IsTestOnly => machineOnline != false || !attested;
+    bool IsTestOnly => machineOnline != false || !attested || !originIsLocal;
+
+    protected override void OnInitialized() =>
+        originIsLocal = ServingOrigin.IsLocal(Navigation.BaseUri);
 
     async Task GenerateAsync()
     {
